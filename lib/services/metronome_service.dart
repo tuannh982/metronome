@@ -10,6 +10,7 @@ class MetronomeService {
   Timer? _timer;
   Stopwatch? _stopwatch;
   int _expectedTick = 0;
+  int _timerId = 0;
 
   MetronomeState _state = const MetronomeState();
 
@@ -30,23 +31,36 @@ class MetronomeService {
   }
 
   /// Set tempo (BPM)
-  void setTempo(int bpm) {
-    final clampedBpm = bpm.clamp(40, 300);
-    _updateState(_state.copyWith(bpm: clampedBpm));
-    if (_state.isPlaying) {
-      // Restart timer with new tempo
-      _restartTimer();
-    }
+  void setTempo(int bpm, {bool immediate = true}) {
+    updateConfig(bpm: bpm, immediate: immediate);
   }
 
   /// Set time signature
-  void setTimeSignature(TimeSignature timeSignature) {
-    _updateState(_state.copyWith(
-      timeSignature: timeSignature,
-      currentBeat: 1, // Reset to beat 1 when changing time signature
-    ));
+  void setTimeSignature(TimeSignature timeSignature, {bool immediate = true}) {
+    updateConfig(timeSignature: timeSignature, immediate: immediate);
+  }
+
+  /// Update tempo and time signature simultaneously
+  void updateConfig({
+    int? bpm,
+    TimeSignature? timeSignature,
+    bool immediate = true,
+  }) {
+    MetronomeState newState = _state;
+    if (bpm != null) {
+      newState = newState.copyWith(bpm: bpm.clamp(40, 300));
+    }
+    if (timeSignature != null) {
+      newState = newState.copyWith(
+        timeSignature: timeSignature,
+        currentBeat: 1, // Reset to beat 1 when changing time signature
+      );
+    }
+    
+    _updateState(newState);
+    
     if (_state.isPlaying) {
-      _restartTimer();
+      _restartTimer(immediate: immediate);
     }
   }
 
@@ -83,24 +97,29 @@ class MetronomeService {
     }
   }
 
-  void _startTimer() {
+  void _startTimer({bool immediate = true}) {
     _stopwatch = Stopwatch()..start();
     _expectedTick = 0;
 
-    // Play first beat immediately
-    _playBeat();
+    // Play first beat immediately if requested
+    if (immediate) {
+      _playBeat();
+    }
 
     // Schedule subsequent beats
-    _scheduleNextBeat();
+    _timerId++; // Increment ID to invalidate any previous timer loops
+    _scheduleNextBeat(_timerId);
   }
 
-  void _scheduleNextBeat() {
+  void _scheduleNextBeat(int sessionId) {
+    if (sessionId != _timerId) return; // Terminate if this isn't the active session
+
     _expectedTick++;
     final nextBeatTime = _expectedTick * _state.beatDurationMicros;
     final delay = nextBeatTime - _stopwatch!.elapsedMicroseconds;
 
     _timer = Timer(Duration(microseconds: delay.clamp(0, _state.beatDurationMicros)), () {
-      if (!_state.isPlaying) return;
+      if (!_state.isPlaying || sessionId != _timerId) return;
 
       // Advance beat
       int nextBeat = _state.currentBeat + 1;
@@ -117,7 +136,7 @@ class MetronomeService {
       ));
 
       _playBeat();
-      _scheduleNextBeat();
+      _scheduleNextBeat(sessionId);
     });
   }
 
@@ -127,12 +146,13 @@ class MetronomeService {
     _stopwatch?.stop();
     _stopwatch = null;
     _expectedTick = 0;
+    _timerId++; // Invalidate any pending timers
   }
 
-  void _restartTimer() {
+  void _restartTimer({bool immediate = true}) {
     _stopTimer();
     if (_state.isPlaying) {
-      _startTimer();
+      _startTimer(immediate: immediate);
     }
   }
 

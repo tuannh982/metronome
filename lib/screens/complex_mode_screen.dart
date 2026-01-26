@@ -120,7 +120,7 @@ class _BarCounter extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 provider.isPlaying
-                    ? '${provider.playbackState.barInDirective}'
+                    ? '${provider.playbackState.totalBar}'
                     : '—',
                 style: TextStyle(
                   fontSize: 48,

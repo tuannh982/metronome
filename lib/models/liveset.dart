@@ -33,6 +33,13 @@ class LivesetDirective {
     return buffer.toString();
   }
 
+  Map<String, dynamic> toJson() => {
+        'timeSignature': timeSignature.toJson(),
+        'tempo': tempo,
+        'bars': bars,
+        'lineNumber': lineNumber,
+      };
+
   @override
   String toString() =>
       'Directive(${timeSignature.display}, $tempo bpm${bars != null ? ', $bars bars' : ''})';
@@ -67,6 +74,12 @@ class Liveset {
     return buffer.toString();
   }
 
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'directives': directives.map((d) => d.toJson()).toList(),
+        'totalBars': totalBars,
+      };
+
   @override
   String toString() => 'Liveset($name: ${directives.length} directives)';
 }
@@ -75,6 +88,7 @@ class Liveset {
 class LivesetPlaybackState {
   final int directiveIndex;
   final int barInDirective;
+  final int totalBar;
   final int beatInBar;
   final int currentTempo;
   final TimeSignature currentTimeSignature;
@@ -82,6 +96,7 @@ class LivesetPlaybackState {
   const LivesetPlaybackState({
     this.directiveIndex = 0,
     this.barInDirective = 1,
+    this.totalBar = 1,
     this.beatInBar = 1,
     this.currentTempo = 120,
     this.currentTimeSignature = TimeSignature.common,
@@ -90,6 +105,7 @@ class LivesetPlaybackState {
   LivesetPlaybackState copyWith({
     int? directiveIndex,
     int? barInDirective,
+    int? totalBar,
     int? beatInBar,
     int? currentTempo,
     TimeSignature? currentTimeSignature,
@@ -97,6 +113,7 @@ class LivesetPlaybackState {
     return LivesetPlaybackState(
       directiveIndex: directiveIndex ?? this.directiveIndex,
       barInDirective: barInDirective ?? this.barInDirective,
+      totalBar: totalBar ?? this.totalBar,
       beatInBar: beatInBar ?? this.beatInBar,
       currentTempo: currentTempo ?? this.currentTempo,
       currentTimeSignature: currentTimeSignature ?? this.currentTimeSignature,

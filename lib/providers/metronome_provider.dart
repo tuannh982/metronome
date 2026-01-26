@@ -97,6 +97,7 @@ class MetronomeProvider extends ChangeNotifier {
   void updateDslText(String text) {
     _dslText = text;
     final result = _parser.parse(text);
+    print(result.toString());
     _parseErrors = result.errors;
     _liveset = result.liveset;
     notifyListeners();
@@ -116,6 +117,7 @@ class MetronomeProvider extends ChangeNotifier {
     _playbackState = LivesetPlaybackState(
       directiveIndex: 0,
       barInDirective: 1,
+      totalBar: 1,
       beatInBar: 1,
       currentTempo: firstDirective.tempo,
       currentTimeSignature: firstDirective.timeSignature,
@@ -144,17 +146,22 @@ class MetronomeProvider extends ChangeNotifier {
 
     int currentIndex = _playbackState.directiveIndex;
     int currentBar = _playbackState.barInDirective;
+    int totalBar = _playbackState.totalBar;
     int currentTempo = _playbackState.currentTempo;
     TimeSignature currentTimeSig = _playbackState.currentTimeSignature;
 
     final previousBeat = _playbackState.beatInBar;
     final currentBeat = _state.currentBeat;
 
+    // Only advance if a beat has actually passed
+    if (currentBeat == previousBeat) return;
+
     // Detect bar transition: when beat resets to 1 after being on a higher beat
     final isNewBar = currentBeat == 1 && previousBeat > 1;
 
     if (isNewBar) {
       currentBar++;
+      totalBar++;
 
       // Check if we need to advance to next directive
       final currentDirective = _liveset!.directives[currentIndex];
@@ -174,20 +181,24 @@ class MetronomeProvider extends ChangeNotifier {
         final nextDirective = _liveset!.directives[currentIndex];
         currentTempo = nextDirective.tempo;
         currentTimeSig = nextDirective.timeSignature;
-        
+
         // Update _playbackState BEFORE calling setTempo/setTimeSignature
         // to avoid reentrancy issues (setTimeSignature triggers onBeat callback
         // which would call _advanceLivesetPlayback again before we update state)
         _playbackState = LivesetPlaybackState(
           directiveIndex: currentIndex,
           barInDirective: currentBar,
+          totalBar: totalBar,
           beatInBar: currentBeat,
           currentTempo: currentTempo,
           currentTimeSignature: currentTimeSig,
         );
-        
-        _metronomeService.setTempo(currentTempo);
-        _metronomeService.setTimeSignature(currentTimeSig);
+
+        _metronomeService.updateConfig(
+          bpm: currentTempo,
+          timeSignature: currentTimeSig,
+          immediate: false,
+        );
         return; // Already updated _playbackState
       }
     }
@@ -195,6 +206,7 @@ class MetronomeProvider extends ChangeNotifier {
     _playbackState = LivesetPlaybackState(
       directiveIndex: currentIndex,
       barInDirective: currentBar,
+      totalBar: totalBar,
       beatInBar: currentBeat,
       currentTempo: currentTempo,
       currentTimeSignature: currentTimeSig,

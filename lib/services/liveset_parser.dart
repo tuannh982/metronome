@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:petitparser/petitparser.dart';
 import '../models/liveset.dart';
 import '../models/time_signature.dart';
@@ -22,6 +23,17 @@ class ParseResult {
 
   bool get hasErrors => errors.isNotEmpty;
   bool get isSuccess => liveset != null && errors.isEmpty;
+
+  @override
+  String toString() {
+    if (isSuccess) {
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(liveset?.toJson());
+      return 'ParseResult: Success (${liveset?.directives.length ?? 0} directives)\n$jsonStr';
+    } else {
+      return 'ParseResult: Failure (${errors.length} errors)\n' +
+          errors.map((e) => '  - $e').join('\n');
+    }
+  }
 }
 
 /// State machine states for parsing

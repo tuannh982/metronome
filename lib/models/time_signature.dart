@@ -61,4 +61,10 @@ class TimeSignature {
     if ((den & (den - 1)) != 0) return null;
     return TimeSignature(numerator: num, denominator: den);
   }
+
+  Map<String, dynamic> toJson() => {
+        'numerator': numerator,
+        'denominator': denominator,
+        'display': display,
+      };
 }
