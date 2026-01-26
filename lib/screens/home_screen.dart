@@ -32,9 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, provider, child) {
         if (!provider.initialized) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -61,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.all(24),
                         child: PlayControls(
                           isPlaying: provider.isPlaying,
+                          isEnabled: provider.canPlay,
                           onPlayPause: provider.toggle,
                           onStop: provider.stop,
                         ),

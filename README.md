@@ -9,5 +9,5 @@ To run this project locally, ensure you have the [Flutter SDK](https://docs.flut
 To run the application in a web browser on port 8080, use:
 
 ```bash
-flutter run -d chrome --web-port=8080
+flutter run --hot -d chrome --web-port=8080
 ```

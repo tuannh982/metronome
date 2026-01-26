@@ -38,6 +38,13 @@ class MetronomeProvider extends ChangeNotifier {
   List<ParseError> get parseErrors => _parseErrors;
   bool get isPlaying => _state.isPlaying;
   bool get initialized => _initialized;
+  bool get canPlay {
+    if (_mode == AppMode.simple) return true;
+    final hasDirectives = _liveset?.directives.isNotEmpty ?? false;
+    final hasNoErrors = _parseErrors.isEmpty;
+    final hasContent = _dslText.trim().isNotEmpty;
+    return hasNoErrors && hasDirectives && hasContent;
+  }
 
   /// Initialize the provider
   Future<void> init() async {
@@ -70,7 +77,10 @@ class MetronomeProvider extends ChangeNotifier {
 
   /// Play metronome
   void play() {
-    if (_mode == AppMode.complex && _liveset != null && _liveset!.directives.isNotEmpty) {
+    if (!canPlay) return;
+    if (_mode == AppMode.complex &&
+        _liveset != null &&
+        _liveset!.directives.isNotEmpty) {
       _playLiveset();
     } else {
       _metronomeService.play();
@@ -89,7 +99,9 @@ class MetronomeProvider extends ChangeNotifier {
     if (_state.isPlaying) {
       _metronomeService.pause();
     } else {
-      play();
+      if (canPlay) {
+        play();
+      }
     }
   }
 
@@ -166,7 +178,8 @@ class MetronomeProvider extends ChangeNotifier {
       // Check if we need to advance to next directive
       final currentDirective = _liveset!.directives[currentIndex];
 
-      if (currentDirective.bars != null && currentBar > currentDirective.bars!) {
+      if (currentDirective.bars != null &&
+          currentBar > currentDirective.bars!) {
         // Move to next directive
         currentIndex++;
         currentBar = 1;

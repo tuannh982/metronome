@@ -4,12 +4,14 @@ import '../theme/app_theme.dart';
 /// Play/pause and stop controls
 class PlayControls extends StatelessWidget {
   final bool isPlaying;
+  final bool isEnabled;
   final VoidCallback onPlayPause;
   final VoidCallback onStop;
 
   const PlayControls({
     super.key,
     required this.isPlaying,
+    this.isEnabled = true,
     required this.onPlayPause,
     required this.onStop,
   });
@@ -24,16 +26,18 @@ class PlayControls extends StatelessWidget {
           color: AppTheme.cardColor,
           shape: const CircleBorder(),
           child: InkWell(
-            onTap: onStop,
+            onTap: isEnabled ? onStop : null,
             customBorder: const CircleBorder(),
             child: Container(
               width: 56,
               height: 56,
               alignment: Alignment.center,
-              child: const Icon(
+              child: Icon(
                 Icons.stop_rounded,
                 size: 32,
-                color: AppTheme.textColor,
+                color: isEnabled
+                    ? AppTheme.textColor
+                    : AppTheme.textSecondary.withValues(alpha: 0.3),
               ),
             ),
           ),
@@ -51,14 +55,17 @@ class PlayControls extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  AppTheme.primaryColor,
-                  AppTheme.accentColor,
-                ],
+                colors: isEnabled
+                    ? [AppTheme.primaryColor, AppTheme.accentColor]
+                    : [
+                        AppTheme.textSecondary.withValues(alpha: 0.2),
+                        AppTheme.textSecondary.withValues(alpha: 0.1),
+                      ],
               ),
             ),
             child: InkWell(
-              onTap: onPlayPause,
+              onTap: isEnabled ? onPlayPause : null,
+
               customBorder: const CircleBorder(),
               child: Container(
                 width: 80,

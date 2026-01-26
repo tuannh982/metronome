@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_code_editor/flutter_code_editor.dart';
+import '../services/liveset_analyzer.dart';
+import '../services/liveset_language.dart';
 import '../services/liveset_parser.dart';
 import '../theme/app_theme.dart';
 
@@ -23,13 +25,18 @@ class LivesetEditor extends StatefulWidget {
 }
 
 class _LivesetEditorState extends State<LivesetEditor> {
-  late TextEditingController _controller;
+  late CodeController _controller;
   late FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.text);
+    _controller = CodeController(
+      text: widget.text,
+      language: livesetLanguage,
+      analyzer: LivesetAnalyzer(),
+    );
+    _controller.autocompleter.setCustomWords(['tempo', 'time', 'bars', 'bar']);
     _focusNode = FocusNode();
   }
 
@@ -50,35 +57,6 @@ class _LivesetEditorState extends State<LivesetEditor> {
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
-  }
-
-  void _insertTab() {
-    final cursorOffset = _controller.selection.baseOffset;
-    final text = _controller.text;
-    const tab = '  ';
-
-    final newText = text.substring(0, cursorOffset) +
-        tab +
-        text.substring(_controller.selection.extentOffset);
-
-    _controller.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: cursorOffset + tab.length),
-    );
-
-    widget.onChanged(newText);
-  }
-
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-
-    // Handle TAB key - insert 2 spaces
-    if (event.logicalKey == LogicalKeyboardKey.tab) {
-      _insertTab();
-      return KeyEventResult.handled;
-    }
-
-    return KeyEventResult.ignored;
   }
 
   @override
@@ -104,7 +82,7 @@ class _LivesetEditorState extends State<LivesetEditor> {
         ),
         const SizedBox(height: 12),
 
-        // Editor - simple TextField with visible text
+        // Editor - CodeField with syntax highlighting
         Expanded(
           child: Container(
             decoration: BoxDecoration(
@@ -116,33 +94,57 @@ class _LivesetEditorState extends State<LivesetEditor> {
                     : AppTheme.errorColor.withValues(alpha: 0.5),
               ),
             ),
-            child: Focus(
-              onKeyEvent: _handleKeyEvent,
-              child: TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                keyboardType: TextInputType.multiline,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 14,
-                  color: AppTheme.textColor,
-                  height: 1.6,
-                ),
-                cursorColor: AppTheme.primaryColor,
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.all(16),
-                  hintText: _hintText,
-                  hintStyle: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 14,
-                    color: AppTheme.textSecondary.withValues(alpha: 0.5),
+            child: Scrollbar(
+              child: SingleChildScrollView(
+                child: CodeTheme(
+                  data: CodeThemeData(
+                    styles: {
+                      'root': const TextStyle(
+                        color: AppTheme.textColor,
+                        backgroundColor: Colors
+                            .transparent, // Background handled by container
+                      ),
+                      'keyword': const TextStyle(
+                        color: AppTheme.accentColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      'number': const TextStyle(color: AppTheme.successColor),
+                      'operator': const TextStyle(
+                        color: AppTheme.beatHighlight,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      'comment': const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontStyle: FontStyle.normal,
+                      ),
+                    },
+                  ),
+                  child: CodeField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    maxLines: null,
+                    onChanged: widget.onChanged,
+                    cursorColor: AppTheme.primaryColor,
+                    gutterStyle: GutterStyle(
+                      showErrors: true,
+                      showFoldingHandles: false,
+                      showLineNumbers: true,
+                      textAlign: TextAlign.right,
+                      margin: 12.0,
+                      textStyle: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    textStyle: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 14,
+                      height: 1.6,
+                    ),
+                    decoration: const BoxDecoration(color: Colors.transparent),
                   ),
                 ),
-                onChanged: widget.onChanged,
               ),
             ),
           ),
@@ -150,15 +152,4 @@ class _LivesetEditorState extends State<LivesetEditor> {
       ],
     );
   }
-
-  String get _hintText => '''
-// Liveset syntax:
-tempo 120
-
-time 4/4, 8 bars
-time 3/4, 4 bars
-
-tempo 140
-time 7/8, 8 bars
-''';
 }
