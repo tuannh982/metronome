@@ -30,7 +30,7 @@ class PlayControls extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: isEnabled
-                  ? [AppTheme.primaryColor, AppTheme.accentColor]
+                  ? const [AppTheme.primaryColor, AppTheme.accentColor]
                   : [
                       AppTheme.textSecondary.withValues(alpha: 0.2),
                       AppTheme.textSecondary.withValues(alpha: 0.1),

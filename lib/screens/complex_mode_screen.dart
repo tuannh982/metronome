@@ -99,8 +99,9 @@ class _BarCounter extends StatelessWidget {
             : null,
         boxShadow: provider.isPlaying
             ? [
-                BoxShadow(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                const BoxShadow(
+                  color: AppTheme
+                      .primaryColor, // withValues handled separately if needed, but AppTheme should be stable
                   blurRadius: 16,
                   spreadRadius: 2,
                 ),
@@ -112,7 +113,7 @@ class _BarCounter extends StatelessWidget {
         children: [
           Column(
             children: [
-              Text(
+              const Text(
                 'BAR',
                 style: TextStyle(
                   fontSize: 12,

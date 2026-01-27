@@ -243,12 +243,12 @@ class _BeatDisplayState extends State<BeatDisplay>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
+                  const Text(
                     'NEXT',
                     style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.textSecondary.withValues(alpha: 0.6),
+                      color: AppTheme.textSecondary,
                       letterSpacing: 1.0,
                     ),
                   ),
