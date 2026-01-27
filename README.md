@@ -42,5 +42,11 @@ git subtree push --prefix build/web origin gh-pages
 git reset --hard HEAD~1
 ```
 
+> [!TIP]
+> If you encounter a `non-fast-forward` error when pushing to `gh-pages`, you can force push the subtree using:
+> ```bash
+> git push origin $(git subtree split --prefix build/web HEAD):gh-pages --force
+> ```
+
 > [!NOTE]
 > Ensure that your GitHub repository settings under **Pages** are set to deploy from the `gh-pages` branch.
