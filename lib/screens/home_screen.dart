@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,9 +22,25 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize provider
+    // Initialize provider and check for deep links
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<MetronomeProvider>().init();
+      final provider = context.read<MetronomeProvider>();
+      provider.init().then((_) {
+        // Handle deep links (web only)
+        final uri = Uri.base;
+        if (uri.queryParameters.containsKey('mode') &&
+            uri.queryParameters['mode'] == 'complex' &&
+            uri.queryParameters.containsKey('code')) {
+          try {
+            final encoded = uri.queryParameters['code']!;
+            final decoded = utf8.decode(base64Url.decode(encoded));
+            provider.setMode(AppMode.complex);
+            provider.updateDslText(decoded);
+          } catch (e) {
+            debugPrint('Error parsing deep link: $e');
+          }
+        }
+      });
     });
   }
 

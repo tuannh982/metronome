@@ -7,9 +7,6 @@ sealed class LivesetDirective {
 
   const LivesetDirective({required this.lineNumber});
 
-  /// Convert to DSL text
-  String toDsl();
-
   Map<String, dynamic> toJson();
 }
 
@@ -32,16 +29,6 @@ class TimeDirective extends LivesetDirective {
   });
 
   @override
-  String toDsl() {
-    final buffer = StringBuffer();
-    buffer.write('time ${timeSignature.display}');
-    if (bars != null) {
-      buffer.write(', $bars bars');
-    }
-    return buffer.toString();
-  }
-
-  @override
   Map<String, dynamic> toJson() => {
     'type': 'time',
     'timeSignature': timeSignature.toJson(),
@@ -61,9 +48,6 @@ class DelayDirective extends LivesetDirective {
   final double seconds;
 
   const DelayDirective({required this.seconds, required super.lineNumber});
-
-  @override
-  String toDsl() => 'delay $seconds';
 
   @override
   Map<String, dynamic> toJson() => {
@@ -91,24 +75,6 @@ class Liveset {
       .whereType<TimeDirective>()
       .where((d) => d.bars != null)
       .fold(0, (sum, d) => sum + d.bars!);
-
-  /// Convert entire liveset to DSL text
-  String toDsl() {
-    final buffer = StringBuffer();
-    buffer.writeln('// Liveset: $name');
-    buffer.writeln();
-    int lastTempo = -1;
-    for (final directive in directives) {
-      if (directive is TimeDirective) {
-        if (directive.tempo != lastTempo) {
-          buffer.writeln('tempo ${directive.tempo}');
-          lastTempo = directive.tempo;
-        }
-      }
-      buffer.writeln(directive.toDsl());
-    }
-    return buffer.toString();
-  }
 
   Map<String, dynamic> toJson() => {
     'name': name,

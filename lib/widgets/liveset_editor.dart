@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
+import 'share_modal.dart';
 import '../services/liveset_analyzer.dart';
 import '../services/liveset_language.dart';
 import '../services/liveset_parser.dart';
@@ -74,9 +75,19 @@ class _LivesetEditorState extends State<LivesetEditor> {
             ),
             if (widget.onExport != null)
               ElevatedButton.icon(
-                onPressed: widget.errors.isEmpty ? widget.onExport : null,
-                icon: const Icon(Icons.download, size: 18),
-                label: const Text('Export'),
+                onPressed: widget.errors.isEmpty
+                    ? () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => ShareModal(
+                            dslText: widget.text,
+                            onExport: widget.onExport!,
+                          ),
+                        );
+                      }
+                    : null,
+                icon: const Icon(Icons.share, size: 18),
+                label: const Text('Share'),
               ),
           ],
         ),

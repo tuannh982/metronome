@@ -20,4 +20,5 @@ class AppConstants {
 
   // Other configurations
   static const int tempoDigitsLimit = 3;
+  static const String baseUrl = String.fromEnvironment('BASE_URL', defaultValue: 'http://localhost:8080');
 }

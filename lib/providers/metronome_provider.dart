@@ -165,7 +165,7 @@ class MetronomeProvider extends ChangeNotifier {
 
   /// Get DSL export text
   String exportDsl() {
-    return _liveset?.toDsl() ?? _dslText;
+    return _dslText;
   }
 
   void _playLiveset() {

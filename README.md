@@ -21,7 +21,7 @@ To deploy this project to GitHub Pages, you need to build the web application an
 Run the following command to build the project with the correct base href:
 
 ```bash
-flutter build web --release --base-href "/metronome/"
+BASE_URL=$BASE_URL flutter build web --release --base-href "/metronome/"
 ```
 
 ### 2. Publish to GitHub Pages

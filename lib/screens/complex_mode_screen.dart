@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:uuid/uuid.dart';
 
 import '../providers/metronome_provider.dart';
 import '../widgets/liveset_editor.dart';
@@ -47,11 +48,12 @@ class ComplexModeScreen extends StatelessWidget {
     try {
       final content = provider.exportDsl();
       final bytes = utf8.encode(content);
+      final fileName = const Uuid().v4().replaceAll('-', '');
 
       await FileSaver.instance.saveFile(
-        name: 'liveset',
+        name: fileName,
         bytes: bytes,
-        ext: 'txt',
+        ext: 'liveset',
         mimeType: MimeType.text,
       );
 
