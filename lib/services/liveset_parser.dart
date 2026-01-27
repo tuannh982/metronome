@@ -27,7 +27,9 @@ class ParseResult {
   @override
   String toString() {
     if (isSuccess) {
-      final jsonStr = const JsonEncoder.withIndent('  ').convert(liveset?.toJson());
+      final jsonStr = const JsonEncoder.withIndent(
+        '  ',
+      ).convert(liveset?.toJson());
       return 'ParseResult: Success (${liveset?.directives.length ?? 0} directives)\n$jsonStr';
     } else {
       return 'ParseResult: Failure (${errors.length} errors)\n' +
@@ -38,9 +40,9 @@ class ParseResult {
 
 /// State machine states for parsing
 enum _ParseState {
-  initial,       // Start of file, expecting tempo or time
-  afterTempo,    // After tempo line, expecting time 
-  afterTime,     // After time line, expecting time or tempo or EOF
+  initial, // Start of file, expecting tempo or time
+  afterTempo, // After tempo line, expecting time
+  afterTime, // After time line, expecting time or tempo or EOF
 }
 
 /// Parser for the liveset DSL using PetitParser and state machine
@@ -49,18 +51,19 @@ enum _ParseState {
 /// ```
 /// // Comments start with //
 /// /* Multi-line comments */
-/// 
+///
 /// tempo 120           // Set track tempo (once at top or can change later)
-/// 
+///
 /// time 4/4, 8 bars    // Time signature with bar count
 /// time 3/4            // Time signature without bar count
-/// 
+///
 /// tempo 140           // Can change tempo between time directives
 /// time 7/8, 16 bars
 /// ```
 class LivesetParser {
   late final Parser<int> _tempoValueParser;
   late final Parser<_TimePart> _timeParser;
+  late final Parser<double> _delayParser;
 
   LivesetParser() {
     _buildParser();
@@ -82,7 +85,9 @@ class LivesetParser {
     });
 
     // "tempo N" - just extracts the number (must consume entire line)
-    _tempoValueParser = (string('tempo').trim() & number & ws.end()).map((values) {
+    _tempoValueParser = (string('tempo').trim() & number & ws.end()).map((
+      values,
+    ) {
       return values[1] as int;
     });
 
@@ -90,22 +95,36 @@ class LivesetParser {
     final comma = (ws & char(',') & ws);
 
     // "N bars" or "N bar" part (optional)
-    final barsPart = (number & ws & (string('bars') | string('bar'))).map((values) {
+    final barsPart = (number & ws & (string('bars') | string('bar'))).map((
+      values,
+    ) {
       return values[0] as int;
     });
 
     // "time N/N[, N bars]" line (must consume entire line)
-    _timeParser = (string('time').trim() & timeSignature & (comma & barsPart).optional() & ws.end())
-        .map((values) {
-      final timeSig = values[1] as TimeSignature;
-      int? bars;
-      if (values[2] != null) {
-        final barsList = values[2] as List;
-        // barsList structure: [ws, ',', ws, N] where comma produces 3 elements
-        // and barsPart (the number) is the 4th element (index 3)
-        bars = barsList[3] as int;
-      }
-      return _TimePart(timeSignature: timeSig, bars: bars);
+    _timeParser =
+        (string('time').trim() &
+                timeSignature &
+                (comma & barsPart).optional() &
+                ws.end())
+            .map((values) {
+              final timeSig = values[1] as TimeSignature;
+              int? bars;
+              if (values[2] != null) {
+                final barsList = values[2] as List;
+                // barsList structure: [ws, ',', ws, N] where comma produces 3 elements
+                // and barsPart (the number) is the 4th element (index 3)
+                bars = barsList[3] as int;
+              }
+              return _TimePart(timeSignature: timeSig, bars: bars);
+            });
+
+    // "delay FLOAT" line
+    final float = (digit().plus() & (char('.') & digit().plus()).optional())
+        .flatten()
+        .map(double.parse);
+    _delayParser = (string('delay').trim() & float & ws.end()).map((values) {
+      return values[1] as double;
     });
   }
 
@@ -145,7 +164,7 @@ class LivesetParser {
       if (line.isEmpty) continue;
 
       final parseResult = _parseLine(line, lineNum, state, currentTempo);
-      
+
       if (parseResult.error != null) {
         errors.add(parseResult.error!);
         continue;
@@ -170,7 +189,12 @@ class LivesetParser {
   }
 
   /// Parse a single line and return result
-  _LineParseResult _parseLine(String line, int lineNum, _ParseState state, int currentTempo) {
+  _LineParseResult _parseLine(
+    String line,
+    int lineNum,
+    _ParseState state,
+    int currentTempo,
+  ) {
     // Try tempo
     if (line.startsWith('tempo')) {
       final result = _tempoValueParser.parse(line);
@@ -189,7 +213,7 @@ class LivesetParser {
       if (result is Success) {
         final timePart = result.value;
         return _LineParseResult(
-          directive: LivesetDirective(
+          directive: TimeDirective(
             timeSignature: timePart.timeSignature,
             tempo: currentTempo,
             bars: timePart.bars,
@@ -199,6 +223,20 @@ class LivesetParser {
       } else {
         return _LineParseResult(
           error: ParseError(lineNum, 'Invalid time signature syntax'),
+        );
+      }
+    }
+
+    // Try delay
+    if (line.startsWith('delay')) {
+      final result = _delayParser.parse(line);
+      if (result is Success) {
+        return _LineParseResult(
+          directive: DelayDirective(seconds: result.value, lineNumber: lineNum),
+        );
+      } else {
+        return _LineParseResult(
+          error: ParseError(lineNum, 'Invalid delay syntax'),
         );
       }
     }

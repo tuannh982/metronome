@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/metronome_provider.dart';
+import '../models/liveset.dart';
 import '../widgets/beat_display.dart';
 import '../widgets/play_controls.dart';
 import '../theme/app_theme.dart';
@@ -76,6 +77,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     totalBeats: provider.state.timeSignature.numerator,
                     isPlaying: provider.isPlaying,
                     isDownbeat: provider.state.isDownbeat,
+                    nextTimeSignature: provider.nextDirective is TimeDirective
+                        ? (provider.nextDirective as TimeDirective)
+                              .timeSignature
+                              .display
+                        : null,
+                    nextTempo: provider.nextDirective is TimeDirective
+                        ? (provider.nextDirective as TimeDirective).tempo
+                        : null,
+                    nextDelay: provider.nextDirective is DelayDirective
+                        ? 'Delay\n${(provider.nextDirective as DelayDirective).seconds}s'
+                        : null,
+                    isDelaying: provider.playbackState.isDelaying,
+                    remainingDelay: provider.remainingDelay,
+                    totalDelay: provider.totalDelay,
                   ),
                 ),
               ],

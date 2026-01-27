@@ -1,7 +1,20 @@
 import 'time_signature.dart';
 
+/// Base class for all directives in a liveset
+sealed class LivesetDirective {
+  /// Line number in source
+  final int lineNumber;
+
+  const LivesetDirective({required this.lineNumber});
+
+  /// Convert to DSL text
+  String toDsl();
+
+  Map<String, dynamic> toJson();
+}
+
 /// A time directive in a liveset (time signature with optional bars and tempo)
-class LivesetDirective {
+class TimeDirective extends LivesetDirective {
   /// Time signature
   final TimeSignature timeSignature;
 
@@ -11,38 +24,56 @@ class LivesetDirective {
   /// Number of bars (optional, null means until next directive)
   final int? bars;
 
-  /// Line number in source
-  final int lineNumber;
-
-  const LivesetDirective({
+  const TimeDirective({
     required this.timeSignature,
     required this.tempo,
     this.bars,
-    required this.lineNumber,
+    required super.lineNumber,
   });
 
-  /// Convert to DSL text (multi-line format)
+  @override
   String toDsl() {
     final buffer = StringBuffer();
-    buffer.writeln('time ${timeSignature.display}');
+    buffer.write('time ${timeSignature.display}');
     if (bars != null) {
-      buffer.write('tempo $tempo, $bars bars');
-    } else {
-      buffer.write('tempo $tempo');
+      buffer.write(', $bars bars');
     }
     return buffer.toString();
   }
 
+  @override
   Map<String, dynamic> toJson() => {
-        'timeSignature': timeSignature.toJson(),
-        'tempo': tempo,
-        'bars': bars,
-        'lineNumber': lineNumber,
-      };
+    'type': 'time',
+    'timeSignature': timeSignature.toJson(),
+    'tempo': tempo,
+    'bars': bars,
+    'lineNumber': lineNumber,
+  };
 
   @override
   String toString() =>
-      'Directive(${timeSignature.display}, $tempo bpm${bars != null ? ', $bars bars' : ''})';
+      'TimeDirective(${timeSignature.display}, $tempo bpm${bars != null ? ', $bars bars' : ''})';
+}
+
+/// A delay directive in a liveset (pauses playback for a duration)
+class DelayDirective extends LivesetDirective {
+  /// Duration in seconds
+  final double seconds;
+
+  const DelayDirective({required this.seconds, required super.lineNumber});
+
+  @override
+  String toDsl() => 'delay $seconds';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'delay',
+    'seconds': seconds,
+    'lineNumber': lineNumber,
+  };
+
+  @override
+  String toString() => 'DelayDirective($seconds s)';
 }
 
 /// A complete liveset containing directives
@@ -50,16 +81,14 @@ class Liveset {
   final String name;
   final List<LivesetDirective> directives;
 
-  const Liveset({
-    this.name = 'Untitled',
-    this.directives = const [],
-  });
+  const Liveset({this.name = 'Untitled', this.directives = const []});
 
   /// Check if liveset is empty
   bool get isEmpty => directives.isEmpty;
 
-  /// Get total bars (only counting directives with explicit bars)
+  /// Get total bars (only counting time directives with explicit bars)
   int get totalBars => directives
+      .whereType<TimeDirective>()
       .where((d) => d.bars != null)
       .fold(0, (sum, d) => sum + d.bars!);
 
@@ -68,17 +97,24 @@ class Liveset {
     final buffer = StringBuffer();
     buffer.writeln('// Liveset: $name');
     buffer.writeln();
+    int lastTempo = -1;
     for (final directive in directives) {
+      if (directive is TimeDirective) {
+        if (directive.tempo != lastTempo) {
+          buffer.writeln('tempo ${directive.tempo}');
+          lastTempo = directive.tempo;
+        }
+      }
       buffer.writeln(directive.toDsl());
     }
     return buffer.toString();
   }
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'directives': directives.map((d) => d.toJson()).toList(),
-        'totalBars': totalBars,
-      };
+    'name': name,
+    'directives': directives.map((d) => d.toJson()).toList(),
+    'totalBars': totalBars,
+  };
 
   @override
   String toString() => 'Liveset($name: ${directives.length} directives)';
@@ -89,34 +125,42 @@ class LivesetPlaybackState {
   final int directiveIndex;
   final int barInDirective;
   final int totalBar;
+  final int flattenedIndex;
   final int beatInBar;
   final int currentTempo;
   final TimeSignature currentTimeSignature;
+  final bool isDelaying;
 
   const LivesetPlaybackState({
     this.directiveIndex = 0,
     this.barInDirective = 1,
     this.totalBar = 1,
+    this.flattenedIndex = 0,
     this.beatInBar = 1,
     this.currentTempo = 120,
     this.currentTimeSignature = TimeSignature.common,
+    this.isDelaying = false,
   });
 
   LivesetPlaybackState copyWith({
     int? directiveIndex,
     int? barInDirective,
     int? totalBar,
+    int? flattenedIndex,
     int? beatInBar,
     int? currentTempo,
     TimeSignature? currentTimeSignature,
+    bool? isDelaying,
   }) {
     return LivesetPlaybackState(
       directiveIndex: directiveIndex ?? this.directiveIndex,
       barInDirective: barInDirective ?? this.barInDirective,
       totalBar: totalBar ?? this.totalBar,
+      flattenedIndex: flattenedIndex ?? this.flattenedIndex,
       beatInBar: beatInBar ?? this.beatInBar,
       currentTempo: currentTempo ?? this.currentTempo,
       currentTimeSignature: currentTimeSignature ?? this.currentTimeSignature,
+      isDelaying: isDelaying ?? this.isDelaying,
     );
   }
 }

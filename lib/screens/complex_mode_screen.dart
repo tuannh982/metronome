@@ -41,7 +41,9 @@ class ComplexModeScreen extends StatelessWidget {
   }
 
   Future<void> _exportLiveset(
-      BuildContext context, MetronomeProvider provider) async {
+    BuildContext context,
+    MetronomeProvider provider,
+  ) async {
     try {
       final content = provider.exportDsl();
       final bytes = utf8.encode(content);
@@ -120,7 +122,9 @@ class _BarCounter extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 provider.isPlaying
-                    ? '${provider.playbackState.totalBar}'
+                    ? (provider.playbackState.isDelaying
+                          ? '—'
+                          : '${provider.playbackState.totalBar}')
                     : '—',
                 style: TextStyle(
                   fontSize: 48,
@@ -153,10 +157,7 @@ class _BarCounter extends StatelessWidget {
                 ),
                 Text(
                   provider.playbackState.currentTimeSignature.display,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppTheme.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
                 ),
               ],
             ),

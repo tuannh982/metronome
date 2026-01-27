@@ -56,30 +56,34 @@ class MetronomeService {
         currentBeat: 1, // Reset to beat 1 when changing time signature
       );
     }
-    
+
     _updateState(newState);
-    
+
     if (_state.isPlaying) {
       _restartTimer(immediate: immediate);
     }
   }
 
   /// Start playing
-  void play() {
+  void play({bool reset = true}) {
     if (_state.isPlaying) return;
 
-    _updateState(_state.copyWith(isPlaying: true, currentBeat: 1, currentBar: 1));
+    if (reset) {
+      _updateState(
+        _state.copyWith(isPlaying: true, currentBeat: 1, currentBar: 1),
+      );
+    } else {
+      _updateState(_state.copyWith(isPlaying: true));
+    }
     _startTimer();
   }
 
   /// Stop playing
   void stop() {
     _stopTimer();
-    _updateState(_state.copyWith(
-      isPlaying: false,
-      currentBeat: 1,
-      currentBar: 1,
-    ));
+    _updateState(
+      _state.copyWith(isPlaying: false, currentBeat: 1, currentBar: 1),
+    );
   }
 
   /// Pause playing (preserves current beat)
@@ -112,32 +116,35 @@ class MetronomeService {
   }
 
   void _scheduleNextBeat(int sessionId) {
-    if (sessionId != _timerId) return; // Terminate if this isn't the active session
+    if (sessionId != _timerId)
+      return; // Terminate if this isn't the active session
 
     _expectedTick++;
     final nextBeatTime = _expectedTick * _state.beatDurationMicros;
     final delay = nextBeatTime - _stopwatch!.elapsedMicroseconds;
 
-    _timer = Timer(Duration(microseconds: delay.clamp(0, _state.beatDurationMicros)), () {
-      if (!_state.isPlaying || sessionId != _timerId) return;
+    _timer = Timer(
+      Duration(microseconds: delay.clamp(0, _state.beatDurationMicros)),
+      () {
+        if (!_state.isPlaying || sessionId != _timerId) return;
 
-      // Advance beat
-      int nextBeat = _state.currentBeat + 1;
-      int nextBar = _state.currentBar;
+        // Advance beat
+        int nextBeat = _state.currentBeat + 1;
+        int nextBar = _state.currentBar;
 
-      if (nextBeat > _state.timeSignature.numerator) {
-        nextBeat = 1;
-        nextBar++;
-      }
+        if (nextBeat > _state.timeSignature.numerator) {
+          nextBeat = 1;
+          nextBar++;
+        }
 
-      _updateState(_state.copyWith(
-        currentBeat: nextBeat,
-        currentBar: nextBar,
-      ));
+        _updateState(
+          _state.copyWith(currentBeat: nextBeat, currentBar: nextBar),
+        );
 
-      _playBeat();
-      _scheduleNextBeat(sessionId);
-    });
+        _playBeat();
+        _scheduleNextBeat(sessionId);
+      },
+    );
   }
 
   void _stopTimer() {
