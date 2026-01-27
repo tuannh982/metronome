@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:petitparser/petitparser.dart';
 import '../models/liveset.dart';
 import '../models/time_signature.dart';
+import '../constants.dart';
 
 /// Parser error with line information
 class ParseError {
@@ -199,7 +200,13 @@ class LivesetParser {
     if (line.startsWith('tempo')) {
       final result = _tempoValueParser.parse(line);
       if (result is Success) {
-        return _LineParseResult(newTempo: result.value);
+        final tempo = result.value;
+        if (tempo < AppConstants.minBpm || tempo > AppConstants.maxBpm) {
+          return _LineParseResult(
+            error: ParseError(lineNum, 'Tempo must be between ${AppConstants.minBpm} and ${AppConstants.maxBpm}'),
+          );
+        }
+        return _LineParseResult(newTempo: tempo);
       } else {
         return _LineParseResult(
           error: ParseError(lineNum, 'Invalid tempo syntax'),
@@ -212,9 +219,23 @@ class LivesetParser {
       final result = _timeParser.parse(line);
       if (result is Success) {
         final timePart = result.value;
+        final ts = timePart.timeSignature;
+        
+        if (ts.numerator <= 0 || ts.denominator <= 0) {
+          return _LineParseResult(
+            error: ParseError(lineNum, 'Time signature numerator and denominator must be positive'),
+          );
+        }
+        
+        if (timePart.bars != null && timePart.bars! <= 0) {
+          return _LineParseResult(
+            error: ParseError(lineNum, 'Bar count must be positive'),
+          );
+        }
+
         return _LineParseResult(
           directive: TimeDirective(
-            timeSignature: timePart.timeSignature,
+            timeSignature: ts,
             tempo: currentTempo,
             bars: timePart.bars,
             lineNumber: lineNum,
@@ -231,8 +252,14 @@ class LivesetParser {
     if (line.startsWith('delay')) {
       final result = _delayParser.parse(line);
       if (result is Success) {
+        final delay = result.value;
+        if (delay < 0) {
+          return _LineParseResult(
+            error: ParseError(lineNum, 'Delay cannot be negative'),
+          );
+        }
         return _LineParseResult(
-          directive: DelayDirective(seconds: result.value, lineNumber: lineNum),
+          directive: DelayDirective(seconds: delay, lineNumber: lineNum),
         );
       } else {
         return _LineParseResult(

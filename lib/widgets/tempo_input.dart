@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
+import '../constants.dart';
 
 /// Widget for inputting and adjusting tempo (BPM)
 class TempoInput extends StatefulWidget {
@@ -42,7 +43,7 @@ class _TempoInputState extends State<TempoInput> {
   }
 
   void _adjustTempo(int delta) {
-    final newBpm = (widget.bpm + delta).clamp(40, 300);
+    final newBpm = (widget.bpm + delta).clamp(AppConstants.minBpm, AppConstants.maxBpm);
     widget.onChanged(newBpm);
     HapticFeedback.lightImpact();
   }
@@ -50,7 +51,7 @@ class _TempoInputState extends State<TempoInput> {
   void _submitTempo() {
     final value = int.tryParse(_controller.text);
     if (value != null) {
-      widget.onChanged(value.clamp(40, 300));
+      widget.onChanged(value.clamp(AppConstants.minBpm, AppConstants.maxBpm));
     }
     _isEditing = false;
     FocusScope.of(context).unfocus();
@@ -68,7 +69,7 @@ class _TempoInputState extends State<TempoInput> {
           },
           child: _isEditing
               ? SizedBox(
-                  width: 150,
+                  width: AppConstants.tempoInputWidth,
                   child: TextField(
                     controller: _controller,
                     keyboardType: TextInputType.number,
@@ -77,7 +78,7 @@ class _TempoInputState extends State<TempoInput> {
                     style: Theme.of(context).textTheme.displaySmall,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(3),
+                      LengthLimitingTextInputFormatter(AppConstants.tempoDigitsLimit),
                     ],
                     onSubmitted: (_) => _submitTempo(),
                     onEditingComplete: _submitTempo,
@@ -92,7 +93,7 @@ class _TempoInputState extends State<TempoInput> {
         ),
         const SizedBox(height: 4),
         Text(
-          'BPM',
+          AppConstants.bpmLabel,
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 20),
@@ -126,12 +127,12 @@ class _TempoInputState extends State<TempoInput> {
 
         // Slider
         SizedBox(
-          width: 300,
+          width: AppConstants.sliderWidth,
           child: Slider(
             value: widget.bpm.toDouble(),
-            min: 40,
-            max: 300,
-            divisions: 260,
+            min: AppConstants.minBpm.toDouble(),
+            max: AppConstants.maxBpm.toDouble(),
+            divisions: AppConstants.maxBpm - AppConstants.minBpm,
             onChanged: (value) {
               widget.onChanged(value.round());
             },
@@ -155,13 +156,13 @@ class _AdjustButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppTheme.cardColor,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppConstants.borderRadius),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
         child: Container(
-          width: 56,
-          height: 44,
+          width: AppConstants.buttonWidth,
+          height: AppConstants.buttonHeight,
           alignment: Alignment.center,
           child: Text(
             label,

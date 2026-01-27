@@ -1,8 +1,9 @@
 import 'time_signature.dart';
+import '../constants.dart';
 
 /// Represents the current state of the metronome
 class MetronomeState {
-  /// Tempo in beats per minute (40-300)
+  /// Tempo in beats per minute
   final int bpm;
 
   /// Current time signature
@@ -18,7 +19,7 @@ class MetronomeState {
   final int currentBar;
 
   const MetronomeState({
-    this.bpm = 120,
+    this.bpm = AppConstants.defaultBpm,
     this.timeSignature = TimeSignature.common,
     this.currentBeat = 1,
     this.isPlaying = false,

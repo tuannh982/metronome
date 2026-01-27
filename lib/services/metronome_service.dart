@@ -2,6 +2,7 @@ import 'dart:async';
 import 'audio_service.dart';
 import '../models/metronome_state.dart';
 import '../models/time_signature.dart';
+import '../constants.dart';
 
 /// Core metronome service with precise timing
 class MetronomeService {
@@ -48,7 +49,7 @@ class MetronomeService {
   }) {
     MetronomeState newState = _state;
     if (bpm != null) {
-      newState = newState.copyWith(bpm: bpm.clamp(40, 300));
+      newState = newState.copyWith(bpm: bpm.clamp(AppConstants.minBpm, AppConstants.maxBpm));
     }
     if (timeSignature != null) {
       newState = newState.copyWith(
@@ -164,12 +165,15 @@ class MetronomeService {
   }
 
   void _playBeat() {
+    onBeat?.call(_state);
+
+    if (!_state.isPlaying) return;
+
     if (_state.isDownbeat) {
       _audioService.playAccent();
     } else {
       _audioService.playClick();
     }
-    onBeat?.call(_state);
   }
 
   void _updateState(MetronomeState newState) {
