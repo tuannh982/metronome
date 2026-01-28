@@ -73,9 +73,16 @@ class TrackParser {
   void _buildParser() {
     // Whitespace
     final ws = char(' ').or(char('\t')).star();
-
     // Numbers
     final number = digit().plus().flatten().map(int.parse);
+    final float = (digit().plus() & (char('.') & digit().plus()).optional())
+        .flatten()
+        .map(double.parse);
+    // Keywords
+    final tempoKw = string('tempo').trim();
+    final timeKw = string('time').trim();
+    final delayKw = string('delay').trim();
+    final barKw = string('bars').trim() | string('bar').trim();
 
     // Time signature: N/N
     final timeSignature = (number & char('/') & number).map((values) {
@@ -86,45 +93,33 @@ class TrackParser {
     });
 
     // "tempo N" - just extracts the number (must consume entire line)
-    _tempoValueParser = (string('tempo').trim() & number & ws.end()).map((
-      values,
-    ) {
-      return values[1] as int;
+    _tempoValueParser = (tempoKw & ws & number & ws.end()).map((values) {
+      return values[2] as int;
     });
 
-    // Optional comma separator
-    final comma = (ws & char(',') & ws);
-
     // "N bars" or "N bar" part (optional)
-    final barsPart = (number & ws & (string('bars') | string('bar'))).map((
-      values,
-    ) {
+    final barsPart = (number & ws & barKw).map((values) {
       return values[0] as int;
     });
 
     // "time N/N[, N bars]" line (must consume entire line)
     _timeParser =
-        (string('time').trim() &
+        (timeKw &
                 timeSignature &
-                (comma & barsPart).optional() &
+                (ws & char(',') & ws & barsPart).optional() &
                 ws.end())
             .map((values) {
               final timeSig = values[1] as TimeSignature;
-              int? bars;
+              int bars = 1; // Default to 1 bar if not specified
               if (values[2] != null) {
                 final barsList = values[2] as List;
-                // barsList structure: [ws, ',', ws, N] where comma produces 3 elements
-                // and barsPart (the number) is the 4th element (index 3)
+                // barsList structure: [ws, ',', ws, score] where score is the int from barsPart
                 bars = barsList[3] as int;
               }
               return _TimePart(timeSignature: timeSig, bars: bars);
             });
 
-    // "delay FLOAT" line
-    final float = (digit().plus() & (char('.') & digit().plus()).optional())
-        .flatten()
-        .map(double.parse);
-    _delayParser = (string('delay').trim() & float & ws.end()).map((values) {
+    _delayParser = (delayKw & float & ws.end()).map((values) {
       return values[1] as double;
     });
   }
@@ -203,7 +198,10 @@ class TrackParser {
         final tempo = result.value;
         if (tempo < AppConstants.minBpm || tempo > AppConstants.maxBpm) {
           return _LineParseResult(
-            error: ParseError(lineNum, 'Tempo must be between ${AppConstants.minBpm} and ${AppConstants.maxBpm}'),
+            error: ParseError(
+              lineNum,
+              'Tempo must be between ${AppConstants.minBpm} and ${AppConstants.maxBpm}',
+            ),
           );
         }
         return _LineParseResult(newTempo: tempo);
@@ -220,13 +218,22 @@ class TrackParser {
       if (result is Success) {
         final timePart = result.value;
         final ts = timePart.timeSignature;
-        
+
         if (ts.numerator <= 0 || ts.denominator <= 0) {
           return _LineParseResult(
-            error: ParseError(lineNum, 'Time signature numerator and denominator must be positive'),
+            error: ParseError(
+              lineNum,
+              'Time signature numerator and denominator must be positive',
+            ),
           );
         }
-        
+
+        if ((ts.denominator & (ts.denominator - 1)) != 0) {
+          return _LineParseResult(
+            error: ParseError(lineNum, 'Denominator must be a power of 2'),
+          );
+        }
+
         if (timePart.bars != null && timePart.bars! <= 0) {
           return _LineParseResult(
             error: ParseError(lineNum, 'Bar count must be positive'),

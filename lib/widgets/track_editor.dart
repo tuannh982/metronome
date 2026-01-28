@@ -60,6 +60,64 @@ class _TrackEditorState extends State<TrackEditor> {
     super.dispose();
   }
 
+  void _showHelp(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('LanguageSyntax'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildHelpItem(
+                'tempo <bpm>',
+                'Sets the tempo (20-500 BPM). Example: tempo 120',
+              ),
+              _buildHelpItem(
+                'time <num>/<den>[, <n> bars]',
+                'Sets time signature and optional bar count. Example: time 4/4, 8 bars',
+              ),
+              _buildHelpItem(
+                'delay <seconds>',
+                'Adds a silent pause. Example: delay 1.5',
+              ),
+              _buildHelpItem('// comment', 'Single-line comment.'),
+              _buildHelpItem('/* comment */', 'Multi-line comment.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHelpItem(String syntax, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            syntax,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: 'monospace',
+              color: AppTheme.accentColor,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(description, style: const TextStyle(fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -69,9 +127,21 @@ class _TrackEditorState extends State<TrackEditor> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Track Editor',
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                Text(
+                  'Track Editor',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.help_outline, size: 20),
+                  tooltip: 'Syntax Help',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => _showHelp(context),
+                ),
+              ],
             ),
             if (widget.onExport != null)
               ElevatedButton.icon(

@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import 'package:provider/provider.dart';
 
 import '../providers/metronome_provider.dart';
@@ -16,6 +18,10 @@ class HomeScreen extends StatefulWidget {
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class PlayPauseIntent extends Intent {
+  const PlayPauseIntent();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -125,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           // App title
           const Text(
-            '🎵 Metronome',
+            'Metronome',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,

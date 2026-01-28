@@ -41,6 +41,7 @@ class MetronomeProvider extends ChangeNotifier {
   TrackPlaybackState get playbackState => _playbackState;
   String get dslText => _dslText;
   List<ParseError> get parseErrors => _parseErrors;
+  List<TrackDirective> get flattenedBars => _flattenedBars;
   bool get isPlaying => _state.isPlaying || _playbackState.isDelaying;
   bool get initialized => _initialized;
   bool get canPlay {
@@ -136,11 +137,69 @@ class MetronomeProvider extends ChangeNotifier {
     }
   }
 
+  void seekTo(int index) {
+    if (_flattenedBars.isEmpty || index < 0 || index >= _flattenedBars.length) {
+      return;
+    }
+
+    final wasPlaying = isPlaying;
+    final directive = _flattenedBars[index];
+    int barInDirective = 1;
+    for (int i = index - 1; i >= 0; i--) {
+      if (_flattenedBars[i] == directive) {
+        barInDirective++;
+      } else {
+        break;
+      }
+    }
+
+    int totalBar = 0;
+    for (int i = 0; i <= index; i++) {
+      if (_flattenedBars[i] is TimeDirective) {
+        totalBar++;
+      }
+    }
+
+    _playbackState = TrackPlaybackState(
+      directiveIndex: _track!.directives.indexOf(directive),
+      barInDirective: barInDirective,
+      totalBar: totalBar,
+      flattenedIndex: index,
+      beatInBar: 1,
+      currentTempo: directive is TimeDirective
+          ? directive.tempo
+          : _playbackState.currentTempo,
+      currentTimeSignature: directive is TimeDirective
+          ? directive.timeSignature
+          : _playbackState.currentTimeSignature,
+      isDelaying: directive is DelayDirective && wasPlaying,
+    );
+
+    if (wasPlaying) {
+      if (directive is TimeDirective) {
+        _delayUpdateTimer?.cancel();
+        _metronomeService.updateConfig(
+          bpm: directive.tempo,
+          timeSignature: directive.timeSignature,
+          immediate: true,
+        );
+        if (!_state.isPlaying) {
+          _metronomeService.play(reset: false);
+        }
+      } else if (directive is DelayDirective) {
+        _metronomeService.pause();
+        _startDelay(directive.seconds);
+      }
+    }
+
+    notifyListeners();
+  }
+
   /// Update DSL text and parse
   void updateDslText(String text) {
     _dslText = text;
     final result = _parser.parse(text);
-    print(result.toString());
+    debugPrint(result.toString());
     _parseErrors = result.errors;
     _track = result.track;
     _buildFlattenedBars();
@@ -156,7 +215,6 @@ class MetronomeProvider extends ChangeNotifier {
         for (int i = 0; i < barsCount; i++) {
           _flattenedBars.add(d);
         }
-        if (d.bars == null) break;
       } else if (d is DelayDirective) {
         _flattenedBars.add(d);
       }
@@ -171,33 +229,27 @@ class MetronomeProvider extends ChangeNotifier {
   void _playTrack() {
     if (_track == null || _track!.isEmpty || _flattenedBars.isEmpty) return;
 
-    final firstBar = _flattenedBars[0];
+    final startIndex = _playbackState.flattenedIndex;
+    final currentBar = _flattenedBars[startIndex];
 
-    if (firstBar is TimeDirective) {
-      _playbackState = TrackPlaybackState(
-        directiveIndex: _track!.directives.indexOf(firstBar),
-        barInDirective: 1,
-        totalBar: 1,
-        flattenedIndex: 0,
-        beatInBar: 1,
-        currentTempo: firstBar.tempo,
-        currentTimeSignature: firstBar.timeSignature,
+    if (currentBar is TimeDirective) {
+      _playbackState = _playbackState.copyWith(
+        directiveIndex: _track!.directives.indexOf(currentBar),
+        isDelaying: false,
+        currentTempo: currentBar.tempo,
+        currentTimeSignature: currentBar.timeSignature,
       );
 
-      _metronomeService.setTempo(firstBar.tempo);
-      _metronomeService.setTimeSignature(firstBar.timeSignature);
+      _metronomeService.setTempo(currentBar.tempo);
+      _metronomeService.setTimeSignature(currentBar.timeSignature);
       _metronomeService.play();
-    } else if (firstBar is DelayDirective) {
-      _playbackState = TrackPlaybackState(
-        directiveIndex: _track!.directives.indexOf(firstBar),
-        barInDirective: 1,
-        totalBar: 0, // Not counting as a bar
-        flattenedIndex: 0,
-        beatInBar: 1,
+    } else if (currentBar is DelayDirective) {
+      _playbackState = _playbackState.copyWith(
+        directiveIndex: _track!.directives.indexOf(currentBar),
         isDelaying: true,
       );
       _metronomeService.stop();
-      _startDelay(firstBar.seconds);
+      _startDelay(currentBar.seconds);
     }
     notifyListeners();
   }

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../providers/metronome_provider.dart';
 import '../widgets/track_editor.dart';
+import '../widgets/track_seeker.dart';
 import '../theme/app_theme.dart';
 
 /// Complex mode screen with track editor
@@ -28,6 +29,15 @@ class ComplexModeScreen extends StatelessWidget {
                   onChanged: provider.updateDslText,
                   onExport: () => _exportTrack(context, provider),
                 ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Track seeker
+              TrackSeeker(
+                flattenedBars: provider.flattenedBars,
+                activeIndex: provider.playbackState.flattenedIndex,
+                onSeek: provider.seekTo,
               ),
 
               const SizedBox(height: 16),
