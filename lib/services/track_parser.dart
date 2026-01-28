@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:petitparser/petitparser.dart';
-import '../models/liveset.dart';
+import '../models/track.dart';
 import '../models/time_signature.dart';
 import '../constants.dart';
 
@@ -15,23 +15,23 @@ class ParseError {
   String toString() => 'Line $line: $message';
 }
 
-/// Result of parsing a liveset
+/// Result of parsing a track
 class ParseResult {
-  final Liveset? liveset;
+  final Track? track;
   final List<ParseError> errors;
 
-  const ParseResult({this.liveset, this.errors = const []});
+  const ParseResult({this.track, this.errors = const []});
 
   bool get hasErrors => errors.isNotEmpty;
-  bool get isSuccess => liveset != null && errors.isEmpty;
+  bool get isSuccess => track != null && errors.isEmpty;
 
   @override
   String toString() {
     if (isSuccess) {
       final jsonStr = const JsonEncoder.withIndent(
         '  ',
-      ).convert(liveset?.toJson());
-      return 'ParseResult: Success (${liveset?.directives.length ?? 0} directives)\n$jsonStr';
+      ).convert(track?.toJson());
+      return 'ParseResult: Success (${track?.directives.length ?? 0} directives)\n$jsonStr';
     } else {
       return 'ParseResult: Failure (${errors.length} errors)\n' +
           errors.map((e) => '  - $e').join('\n');
@@ -46,7 +46,7 @@ enum _ParseState {
   afterTime, // After time line, expecting time or tempo or EOF
 }
 
-/// Parser for the liveset DSL using PetitParser and state machine
+/// Parser for the track DSL using PetitParser and state machine
 ///
 /// DSL Syntax:
 /// ```
@@ -61,12 +61,12 @@ enum _ParseState {
 /// tempo 140           // Can change tempo between time directives
 /// time 7/8, 16 bars
 /// ```
-class LivesetParser {
+class TrackParser {
   late final Parser<int> _tempoValueParser;
   late final Parser<_TimePart> _timeParser;
   late final Parser<double> _delayParser;
 
-  LivesetParser() {
+  TrackParser() {
     _buildParser();
   }
 
@@ -147,12 +147,12 @@ class LivesetParser {
     return cleanedLines.join('\n');
   }
 
-  /// Parse DSL text into a Liveset using state machine
+  /// Parse DSL text into a Track using state machine
   ParseResult parse(String input) {
     final cleanedInput = _removeComments(input);
     final lines = cleanedInput.split('\n');
     final errors = <ParseError>[];
-    final directives = <LivesetDirective>[];
+    final directives = <TrackDirective>[];
 
     // State machine
     var state = _ParseState.initial;
@@ -184,7 +184,7 @@ class LivesetParser {
     }
 
     return ParseResult(
-      liveset: Liveset(directives: directives),
+      track: Track(directives: directives),
       errors: errors,
     );
   }
@@ -291,7 +291,7 @@ class _TimePart {
 /// Result of parsing a single line
 class _LineParseResult {
   final int? newTempo;
-  final LivesetDirective? directive;
+  final TrackDirective? directive;
   final ParseError? error;
 
   _LineParseResult({this.newTempo, this.directive, this.error});

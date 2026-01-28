@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/metronome_provider.dart';
-import '../models/liveset.dart';
+import '../models/track.dart';
 import '../widgets/beat_display.dart';
 import '../widgets/play_controls.dart';
 import '../theme/app_theme.dart';
@@ -150,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => provider.setMode(AppMode.simple),
                 ),
                 _ModeTab(
-                  label: 'Liveset',
+                  label: 'Track',
                   isSelected: provider.mode == AppMode.complex,
                   onTap: () => provider.setMode(AppMode.complex),
                 ),

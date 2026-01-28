@@ -45,7 +45,7 @@ class _ShareModalState extends State<ShareModal> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  _showQR ? 'Scan QR Code' : 'Share Liveset',
+                  _showQR ? 'Scan QR Code' : 'Share Track',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -63,7 +63,7 @@ class _ShareModalState extends State<ShareModal> {
               _ShareOption(
                 icon: Icons.download_rounded,
                 title: 'Export to File',
-                subtitle: 'Save as a .liveset file',
+                subtitle: 'Save as a .track file',
                 onTap: () {
                   widget.onExport();
                   Navigator.pop(context);

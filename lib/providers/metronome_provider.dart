@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/metronome_state.dart';
 import '../models/time_signature.dart';
-import '../models/liveset.dart';
+import '../models/track.dart';
 import '../services/audio_service.dart';
 import '../services/metronome_service.dart';
-import '../services/liveset_parser.dart';
+import '../services/track_parser.dart';
 
 /// App mode enum
 enum AppMode { simple, complex }
@@ -14,13 +14,13 @@ enum AppMode { simple, complex }
 class MetronomeProvider extends ChangeNotifier {
   final AudioService _audioService = AudioService();
   late final MetronomeService _metronomeService;
-  final LivesetParser _parser = LivesetParser();
+  final TrackParser _parser = TrackParser();
 
   AppMode _mode = AppMode.simple;
   MetronomeState _state = const MetronomeState();
-  Liveset? _liveset;
-  List<LivesetDirective> _flattenedBars = [];
-  LivesetPlaybackState _playbackState = const LivesetPlaybackState();
+  Track? _track;
+  List<TrackDirective> _flattenedBars = [];
+  TrackPlaybackState _playbackState = const TrackPlaybackState();
   String _dslText = '';
   List<ParseError> _parseErrors = [];
   bool _initialized = false;
@@ -37,15 +37,15 @@ class MetronomeProvider extends ChangeNotifier {
   // Getters
   AppMode get mode => _mode;
   MetronomeState get state => _state;
-  Liveset? get liveset => _liveset;
-  LivesetPlaybackState get playbackState => _playbackState;
+  Track? get track => _track;
+  TrackPlaybackState get playbackState => _playbackState;
   String get dslText => _dslText;
   List<ParseError> get parseErrors => _parseErrors;
   bool get isPlaying => _state.isPlaying || _playbackState.isDelaying;
   bool get initialized => _initialized;
   bool get canPlay {
     if (_mode == AppMode.simple) return true;
-    final hasDirectives = _liveset?.directives.isNotEmpty ?? false;
+    final hasDirectives = _track?.directives.isNotEmpty ?? false;
     final hasNoErrors = _parseErrors.isEmpty;
     final hasContent = _dslText.trim().isNotEmpty;
     return hasNoErrors && hasDirectives && hasContent;
@@ -54,10 +54,10 @@ class MetronomeProvider extends ChangeNotifier {
   double? get remainingDelay => _remainingDelay;
   double? get totalDelay => _totalDelay;
 
-  /// Get the next directive in the liveset, if any
-  LivesetDirective? get nextDirective {
+  /// Get the next directive in the track, if any
+  TrackDirective? get nextDirective {
     if (_mode != AppMode.complex ||
-        _liveset == null ||
+        _track == null ||
         !isPlaying ||
         _flattenedBars.isEmpty) {
       return null;
@@ -104,9 +104,9 @@ class MetronomeProvider extends ChangeNotifier {
   void play() {
     if (!canPlay) return;
     if (_mode == AppMode.complex &&
-        _liveset != null &&
-        _liveset!.directives.isNotEmpty) {
-      _playLiveset();
+        _track != null &&
+        _track!.directives.isNotEmpty) {
+      _playTrack();
     } else {
       _metronomeService.play();
     }
@@ -115,7 +115,7 @@ class MetronomeProvider extends ChangeNotifier {
   /// Stop metronome
   void stop() {
     _metronomeService.stop();
-    _playbackState = const LivesetPlaybackState();
+    _playbackState = const TrackPlaybackState();
     notifyListeners();
   }
 
@@ -142,15 +142,15 @@ class MetronomeProvider extends ChangeNotifier {
     final result = _parser.parse(text);
     print(result.toString());
     _parseErrors = result.errors;
-    _liveset = result.liveset;
+    _track = result.track;
     _buildFlattenedBars();
     notifyListeners();
   }
 
   void _buildFlattenedBars() {
     _flattenedBars = [];
-    if (_liveset == null) return;
-    for (final d in _liveset!.directives) {
+    if (_track == null) return;
+    for (final d in _track!.directives) {
       if (d is TimeDirective) {
         final barsCount = d.bars ?? 1;
         for (int i = 0; i < barsCount; i++) {
@@ -168,14 +168,14 @@ class MetronomeProvider extends ChangeNotifier {
     return _dslText;
   }
 
-  void _playLiveset() {
-    if (_liveset == null || _liveset!.isEmpty || _flattenedBars.isEmpty) return;
+  void _playTrack() {
+    if (_track == null || _track!.isEmpty || _flattenedBars.isEmpty) return;
 
     final firstBar = _flattenedBars[0];
 
     if (firstBar is TimeDirective) {
-      _playbackState = LivesetPlaybackState(
-        directiveIndex: _liveset!.directives.indexOf(firstBar),
+      _playbackState = TrackPlaybackState(
+        directiveIndex: _track!.directives.indexOf(firstBar),
         barInDirective: 1,
         totalBar: 1,
         flattenedIndex: 0,
@@ -188,8 +188,8 @@ class MetronomeProvider extends ChangeNotifier {
       _metronomeService.setTimeSignature(firstBar.timeSignature);
       _metronomeService.play();
     } else if (firstBar is DelayDirective) {
-      _playbackState = LivesetPlaybackState(
-        directiveIndex: _liveset!.directives.indexOf(firstBar),
+      _playbackState = TrackPlaybackState(
+        directiveIndex: _track!.directives.indexOf(firstBar),
         barInDirective: 1,
         totalBar: 0, // Not counting as a bar
         flattenedIndex: 0,
@@ -222,7 +222,7 @@ class MetronomeProvider extends ChangeNotifier {
       _remainingDelay = null;
       _totalDelay = null;
       if (!_state.isPlaying && _playbackState.isDelaying) {
-        _advanceLivesetPlayback(fromDelay: true);
+        _advanceTrackPlayback(fromDelay: true);
       }
     });
   }
@@ -233,14 +233,14 @@ class MetronomeProvider extends ChangeNotifier {
   }
 
   void _onBeat(MetronomeState state) {
-    if (_mode == AppMode.complex && _liveset != null && _state.isPlaying) {
-      _advanceLivesetPlayback();
+    if (_mode == AppMode.complex && _track != null && _state.isPlaying) {
+      _advanceTrackPlayback();
     }
     notifyListeners();
   }
 
-  void _advanceLivesetPlayback({bool fromDelay = false}) {
-    if (_liveset == null || _flattenedBars.isEmpty) return;
+  void _advanceTrackPlayback({bool fromDelay = false}) {
+    if (_track == null || _flattenedBars.isEmpty) return;
 
     final previousBeat = _playbackState.beatInBar;
     final currentBeat = fromDelay ? 1 : _state.currentBeat;
@@ -256,7 +256,7 @@ class MetronomeProvider extends ChangeNotifier {
       final nextFlattenedIndex = _playbackState.flattenedIndex + 1;
       int currentIndex = nextFlattenedIndex;
 
-      // Handle end of liveset
+      // Handle end of track
       if (currentIndex >= _flattenedBars.length) {
         final lastDirective = _flattenedBars.last;
         if (lastDirective is TimeDirective && lastDirective.bars == null) {
@@ -293,8 +293,8 @@ class MetronomeProvider extends ChangeNotifier {
                 _playbackState.currentTimeSignature ||
             _playbackState.isDelaying;
 
-        _playbackState = LivesetPlaybackState(
-          directiveIndex: _liveset!.directives.indexOf(currentDirective),
+        _playbackState = TrackPlaybackState(
+          directiveIndex: _track!.directives.indexOf(currentDirective),
           barInDirective: barInDirective,
           totalBar: nextTotalBar,
           flattenedIndex: currentIndex,
@@ -315,8 +315,8 @@ class MetronomeProvider extends ChangeNotifier {
           _metronomeService.play(reset: false);
         }
       } else if (currentDirective is DelayDirective) {
-        _playbackState = LivesetPlaybackState(
-          directiveIndex: _liveset!.directives.indexOf(currentDirective),
+        _playbackState = TrackPlaybackState(
+          directiveIndex: _track!.directives.indexOf(currentDirective),
           barInDirective: 1,
           totalBar: nextTotalBar, // Keeps previous totalBar
           flattenedIndex: currentIndex,

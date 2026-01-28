@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'share_modal.dart';
-import '../services/liveset_analyzer.dart';
-import '../services/liveset_language.dart';
-import '../services/liveset_parser.dart';
+import '../services/track_analyzer.dart';
+import '../services/track_language.dart';
+import '../services/track_parser.dart';
 import '../theme/app_theme.dart';
 
-/// Liveset DSL text editor with syntax highlighting and error display
-class LivesetEditor extends StatefulWidget {
+/// Track DSL text editor with syntax highlighting and error display
+class TrackEditor extends StatefulWidget {
   final String text;
   final List<ParseError> errors;
   final ValueChanged<String> onChanged;
   final VoidCallback? onExport;
 
-  const LivesetEditor({
+  const TrackEditor({
     super.key,
     required this.text,
     required this.errors,
@@ -22,10 +22,10 @@ class LivesetEditor extends StatefulWidget {
   });
 
   @override
-  State<LivesetEditor> createState() => _LivesetEditorState();
+  State<TrackEditor> createState() => _TrackEditorState();
 }
 
-class _LivesetEditorState extends State<LivesetEditor> {
+class _TrackEditorState extends State<TrackEditor> {
   late CodeController _controller;
   late FocusNode _focusNode;
 
@@ -34,15 +34,15 @@ class _LivesetEditorState extends State<LivesetEditor> {
     super.initState();
     _controller = CodeController(
       text: widget.text,
-      language: livesetLanguage,
-      analyzer: LivesetAnalyzer(),
+      language: trackLanguage,
+      analyzer: TrackAnalyzer(),
     );
     _controller.autocompleter.setCustomWords(['tempo', 'time', 'bars', 'bar']);
     _focusNode = FocusNode();
   }
 
   @override
-  void didUpdateWidget(LivesetEditor oldWidget) {
+  void didUpdateWidget(TrackEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.text != _controller.text && widget.text != oldWidget.text) {
       final selection = _controller.selection;
@@ -70,7 +70,7 @@ class _LivesetEditorState extends State<LivesetEditor> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Liveset Editor',
+              'Track Editor',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             if (widget.onExport != null)
