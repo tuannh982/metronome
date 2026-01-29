@@ -38,7 +38,7 @@ class _TrackEditorState extends State<TrackEditor> {
       analyzer: TrackAnalyzer(),
     );
     _controller.autocompleter.setCustomWords(['tempo', 'time', 'bars', 'bar']);
-    _focusNode = FocusNode();
+    _focusNode = FocusNode(debugLabel: 'TrackEditor');
   }
 
   @override

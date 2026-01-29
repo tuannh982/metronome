@@ -20,17 +20,19 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class PlayPauseIntent extends Intent {
-  const PlayPauseIntent();
-}
-
 class _HomeScreenState extends State<HomeScreen> {
+  late FocusNode _homeFocusNode;
+
   @override
   void initState() {
     super.initState();
+    _homeFocusNode = FocusNode(debugLabel: 'HomeScreen');
     // Initialize provider and check for deep links
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<MetronomeProvider>();
+      // Request focus for the keyboard listener
+      _homeFocusNode.requestFocus();
+
       provider.init().then((_) {
         // Handle deep links (web only)
         final uri = Uri.base;
@@ -51,6 +53,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void dispose() {
+    _homeFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Consumer<MetronomeProvider>(
       builder: (context, provider, child) {
@@ -60,64 +68,112 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        return Scaffold(
-          body: SafeArea(
-            child: Row(
-              children: [
-                // Main content area
-                Expanded(
-                  child: Column(
-                    children: [
-                      // App bar with mode toggle
-                      _buildAppBar(context, provider),
+        return Focus(
+          focusNode: _homeFocusNode,
+          autofocus: true,
+          onKeyEvent: (node, event) {
+            if (event.logicalKey == LogicalKeyboardKey.space &&
+                event is KeyDownEvent) {
+              // Check if track editor (or any text input) is focused
+              final focused = FocusManager.instance.primaryFocus;
+              if (focused != null) {
+                // Check for debug label we set
+                if (focused.debugLabel == 'TrackEditor') {
+                  return KeyEventResult.ignored;
+                }
+                // Check if it's an editable text widget (fallback)
+                if (focused.context?.widget is EditableText ||
+                    focused.descendants.any(
+                      (n) => n.context?.widget is EditableText,
+                    )) {
+                  return KeyEventResult.ignored;
+                }
+              }
 
-                      // Mode content
-                      Expanded(
-                        child: provider.mode == AppMode.simple
-                            ? const SimpleModeScreen()
-                            : const ComplexModeScreen(),
+              if (provider.mode == AppMode.simple) {
+                // In simple mode, play/stop
+                if (provider.isPlaying) {
+                  provider.stop();
+                } else {
+                  provider.play();
+                }
+              } else {
+                // In complex mode, play/pause (toggle)
+                provider.toggle();
+              }
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: GestureDetector(
+            onTap: () {
+              // Ensure focus returns to the screen when clicking empty space
+              if (!_homeFocusNode.hasFocus) {
+                _homeFocusNode.requestFocus();
+              }
+            },
+            behavior: HitTestBehavior.translucent,
+            child: Scaffold(
+              body: SafeArea(
+                child: Row(
+                  children: [
+                    // Main content area
+                    Expanded(
+                      child: Column(
+                        children: [
+                          // App bar with mode toggle
+                          _buildAppBar(context, provider),
+
+                          // Mode content
+                          Expanded(
+                            child: provider.mode == AppMode.simple
+                                ? const SimpleModeScreen()
+                                : const ComplexModeScreen(),
+                          ),
+
+                          // Play controls
+                          Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: PlayControls(
+                              isPlaying: provider.isPlaying,
+                              isEnabled: provider.canPlay,
+                              onPlayPause: provider.toggle,
+                              onStop: provider.stop,
+                              showStopButton: provider.mode == AppMode.complex,
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
 
-                      // Play controls
-                      Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: PlayControls(
-                          isPlaying: provider.isPlaying,
-                          isEnabled: provider.canPlay,
-                          onPlayPause: provider.toggle,
-                          onStop: provider.stop,
-                          showStopButton: provider.mode == AppMode.complex,
-                        ),
+                    // Beat display (right side)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: BeatDisplay(
+                        currentBeat: provider.state.currentBeat,
+                        totalBeats: provider.state.timeSignature.numerator,
+                        isPlaying: provider.isPlaying,
+                        isDownbeat: provider.state.isDownbeat,
+                        nextTimeSignature:
+                            provider.nextDirective is TimeDirective
+                            ? (provider.nextDirective as TimeDirective)
+                                  .timeSignature
+                                  .display
+                            : null,
+                        nextTempo: provider.nextDirective is TimeDirective
+                            ? (provider.nextDirective as TimeDirective).tempo
+                            : null,
+                        nextDelay: provider.nextDirective is DelayDirective
+                            ? 'Delay\n${(provider.nextDirective as DelayDirective).seconds}s'
+                            : null,
+                        isDelaying: provider.playbackState.isDelaying,
+                        remainingDelay: provider.remainingDelay,
+                        totalDelay: provider.totalDelay,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-
-                // Beat display (right side)
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: BeatDisplay(
-                    currentBeat: provider.state.currentBeat,
-                    totalBeats: provider.state.timeSignature.numerator,
-                    isPlaying: provider.isPlaying,
-                    isDownbeat: provider.state.isDownbeat,
-                    nextTimeSignature: provider.nextDirective is TimeDirective
-                        ? (provider.nextDirective as TimeDirective)
-                              .timeSignature
-                              .display
-                        : null,
-                    nextTempo: provider.nextDirective is TimeDirective
-                        ? (provider.nextDirective as TimeDirective).tempo
-                        : null,
-                    nextDelay: provider.nextDirective is DelayDirective
-                        ? 'Delay\n${(provider.nextDirective as DelayDirective).seconds}s'
-                        : null,
-                    isDelaying: provider.playbackState.isDelaying,
-                    remainingDelay: provider.remainingDelay,
-                    totalDelay: provider.totalDelay,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         );
