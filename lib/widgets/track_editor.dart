@@ -175,6 +175,7 @@ class _TrackEditorState extends State<TrackEditor> {
                     : AppTheme.errorColor.withValues(alpha: 0.5),
               ),
             ),
+            clipBehavior: Clip.hardEdge,
             child: Scrollbar(
               child: SingleChildScrollView(
                 child: CodeTheme(
@@ -221,7 +222,7 @@ class _TrackEditorState extends State<TrackEditor> {
                     textStyle: const TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 14,
-                      height: 1.6,
+                      height: 1.4,
                     ),
                     decoration: const BoxDecoration(color: Colors.transparent),
                   ),
