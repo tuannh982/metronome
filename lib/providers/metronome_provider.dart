@@ -238,6 +238,7 @@ class MetronomeProvider extends ChangeNotifier {
         isDelaying: false,
         currentTempo: currentBar.tempo,
         currentTimeSignature: currentBar.timeSignature,
+        beatInBar: 1, // Reset beat to start of bar
       );
 
       _metronomeService.setTempo(currentBar.tempo);

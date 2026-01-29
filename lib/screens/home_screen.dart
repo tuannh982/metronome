@@ -86,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           isEnabled: provider.canPlay,
                           onPlayPause: provider.toggle,
                           onStop: provider.stop,
+                          showStopButton: provider.mode == AppMode.complex,
                         ),
                       ),
                     ],
@@ -156,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => provider.setMode(AppMode.simple),
                 ),
                 _ModeTab(
-                  label: 'Track',
+                  label: 'Complex',
                   isSelected: provider.mode == AppMode.complex,
                   onTap: () => provider.setMode(AppMode.complex),
                 ),
