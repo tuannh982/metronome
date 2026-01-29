@@ -49,7 +49,9 @@ class MetronomeService {
   }) {
     MetronomeState newState = _state;
     if (bpm != null) {
-      newState = newState.copyWith(bpm: bpm.clamp(AppConstants.minBpm, AppConstants.maxBpm));
+      newState = newState.copyWith(
+        bpm: bpm.clamp(AppConstants.minBpm, AppConstants.maxBpm),
+      );
     }
     if (timeSignature != null) {
       newState = newState.copyWith(

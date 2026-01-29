@@ -39,13 +39,6 @@ class ParseResult {
   }
 }
 
-/// State machine states for parsing
-enum _ParseState {
-  initial, // Start of file, expecting tempo or time
-  afterTempo, // After tempo line, expecting time
-  afterTime, // After time line, expecting time or tempo or EOF
-}
-
 /// Parser for the track DSL using PetitParser and state machine
 ///
 /// DSL Syntax:
@@ -62,27 +55,36 @@ enum _ParseState {
 /// time 7/8, 16 bars
 /// ```
 class TrackParser {
-  late final Parser<int> _tempoValueParser;
-  late final Parser<_TimePart> _timeParser;
-  late final Parser<double> _delayParser;
+  late final Parser<List<dynamic>> _fullParser;
 
   TrackParser() {
     _buildParser();
   }
 
   void _buildParser() {
-    // Whitespace
+    // Basic parsers
     final ws = char(' ').or(char('\t')).star();
-    // Numbers
+    final newline = char('\n').or(string('\r\n'));
     final number = digit().plus().flatten().map(int.parse);
     final float = (digit().plus() & (char('.') & digit().plus()).optional())
         .flatten()
         .map(double.parse);
+
+    // Comments
+    final singleLineComment =
+        string('//') & any().starLazy(newline).flatten() & newline.optional();
+    final multiLineComment =
+        string('/*') & any().starLazy(string('*/')).flatten() & string('*/');
+    final comment = singleLineComment | multiLineComment;
+
+    // Ignored whitespace and comments
+    final ignored = (whitespace() | comment).star();
+
     // Keywords
-    final tempoKw = string('tempo').trim();
-    final timeKw = string('time').trim();
-    final delayKw = string('delay').trim();
-    final barKw = string('bars').trim() | string('bar').trim();
+    final tempoKw = string('tempo');
+    final timeKw = string('time');
+    final delayKw = string('delay');
+    final barKw = string('bars') | string('bar');
 
     // Time signature: N/N
     final timeSignature = (number & char('/') & number).map((values) {
@@ -92,9 +94,10 @@ class TrackParser {
       );
     });
 
-    // "tempo N" - just extracts the number (must consume entire line)
-    _tempoValueParser = (tempoKw & ws & number & ws.end()).map((values) {
-      return values[2] as int;
+    // "tempo N"
+    final tempoParser = (tempoKw & ws & number).token().map((token) {
+      final values = token.value;
+      return _TempoChange(values[2] as int, token.line);
     });
 
     // "N bars" or "N bar" part (optional)
@@ -102,182 +105,116 @@ class TrackParser {
       return values[0] as int;
     });
 
-    // "time N/N[, N bars]" line (must consume entire line)
-    _timeParser =
+    // "time N/N[, N bars]"
+    final timeParser =
         (timeKw &
+                ws &
                 timeSignature &
-                (ws & char(',') & ws & barsPart).optional() &
-                ws.end())
-            .map((values) {
-              final timeSig = values[1] as TimeSignature;
-              int bars = 1; // Default to 1 bar if not specified
-              if (values[2] != null) {
-                final barsList = values[2] as List;
-                // barsList structure: [ws, ',', ws, score] where score is the int from barsPart
+                (ws & char(',') & ws & barsPart).optional())
+            .token()
+            .map((token) {
+              final values = token.value;
+              final timeSig = values[2] as TimeSignature;
+              int bars = 1;
+              if (values[3] != null) {
+                final barsList = values[3] as List;
                 bars = barsList[3] as int;
               }
-              return _TimePart(timeSignature: timeSig, bars: bars);
+              return _TimePart(
+                timeSignature: timeSig,
+                bars: bars,
+                line: token.line,
+              );
             });
 
-    _delayParser = (delayKw & float & ws.end()).map((values) {
-      return values[1] as double;
+    // "delay N"
+    final delayParser = (delayKw & ws & float).token().map((token) {
+      final values = token.value;
+      return _DelayPart(seconds: values[2] as double, line: token.line);
     });
+
+    // Combine all parsers
+    final itemParser = tempoParser | timeParser | delayParser;
+
+    // The full parser consumes all items separated by ignored whitespace
+    _fullParser = (ignored & itemParser).star() & ignored & endOfInput();
   }
 
-  /// Remove comments from input
-  String _removeComments(String input) {
-    // Remove multi-line comments
-    var result = input.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '');
-
-    // Remove single-line comments
-    final lines = result.split('\n');
-    final cleanedLines = lines.map((line) {
-      final commentIndex = line.indexOf('//');
-      if (commentIndex >= 0) {
-        return line.substring(0, commentIndex);
-      }
-      return line;
-    }).toList();
-
-    return cleanedLines.join('\n');
-  }
-
-  /// Parse DSL text into a Track using state machine
+  /// Parse DSL text into a Track
   ParseResult parse(String input) {
-    final cleanedInput = _removeComments(input);
-    final lines = cleanedInput.split('\n');
+    final result = _fullParser.parse(input);
+
+    if (result is Failure) {
+      final lineAndColumn = Token.lineAndColumnOf(
+        result.buffer,
+        result.position,
+      );
+      return ParseResult(
+        errors: [ParseError(lineAndColumn[0], result.message)],
+      );
+    }
+
+    final List<dynamic> rawItems = result.value[0] as List<dynamic>;
+    final parsedItems = rawItems.map((e) => e[1]).toList();
     final errors = <ParseError>[];
     final directives = <TrackDirective>[];
-
-    // State machine
-    var state = _ParseState.initial;
     int currentTempo = 120; // Default tempo
 
-    for (int i = 0; i < lines.length; i++) {
-      final lineNum = i + 1;
-      final line = lines[i].trim();
+    for (final item in parsedItems) {
+      if (item is _TempoChange) {
+        if (item.tempo < AppConstants.minBpm ||
+            item.tempo > AppConstants.maxBpm) {
+          errors.add(
+            ParseError(
+              item.line,
+              'Tempo must be between ${AppConstants.minBpm} and ${AppConstants.maxBpm}',
+            ),
+          );
+        } else {
+          currentTempo = item.tempo;
+        }
+      } else if (item is _TimePart) {
+        final ts = item.timeSignature;
+        if (ts.numerator <= 0 || ts.denominator <= 0) {
+          errors.add(
+            ParseError(
+              item.line,
+              'Time signature numerator and denominator must be positive',
+            ),
+          );
+          continue;
+        }
+        if ((ts.denominator & (ts.denominator - 1)) != 0) {
+          errors.add(ParseError(item.line, 'Denominator must be a power of 2'));
+          continue;
+        }
+        if (item.bars != null && item.bars! <= 0) {
+          errors.add(ParseError(item.line, 'Bar count must be positive'));
+          continue;
+        }
 
-      if (line.isEmpty) continue;
-
-      final parseResult = _parseLine(line, lineNum, state, currentTempo);
-
-      if (parseResult.error != null) {
-        errors.add(parseResult.error!);
-        continue;
-      }
-
-      // Update state based on what we parsed
-      if (parseResult.newTempo != null) {
-        currentTempo = parseResult.newTempo!;
-        state = _ParseState.afterTempo;
-      }
-
-      if (parseResult.directive != null) {
-        directives.add(parseResult.directive!);
-        state = _ParseState.afterTime;
+        directives.add(
+          TimeDirective(
+            timeSignature: ts,
+            tempo: currentTempo,
+            bars: item.bars,
+            lineNumber: item.line,
+          ),
+        );
+      } else if (item is _DelayPart) {
+        if (item.seconds < 0) {
+          errors.add(ParseError(item.line, 'Delay cannot be negative'));
+          continue;
+        }
+        directives.add(
+          DelayDirective(seconds: item.seconds, lineNumber: item.line),
+        );
       }
     }
 
     return ParseResult(
-      track: Track(directives: directives),
+      track: errors.isEmpty ? Track(directives: directives) : null,
       errors: errors,
-    );
-  }
-
-  /// Parse a single line and return result
-  _LineParseResult _parseLine(
-    String line,
-    int lineNum,
-    _ParseState state,
-    int currentTempo,
-  ) {
-    // Try tempo
-    if (line.startsWith('tempo')) {
-      final result = _tempoValueParser.parse(line);
-      if (result is Success) {
-        final tempo = result.value;
-        if (tempo < AppConstants.minBpm || tempo > AppConstants.maxBpm) {
-          return _LineParseResult(
-            error: ParseError(
-              lineNum,
-              'Tempo must be between ${AppConstants.minBpm} and ${AppConstants.maxBpm}',
-            ),
-          );
-        }
-        return _LineParseResult(newTempo: tempo);
-      } else {
-        return _LineParseResult(
-          error: ParseError(lineNum, 'Invalid tempo syntax'),
-        );
-      }
-    }
-
-    // Try time
-    if (line.startsWith('time')) {
-      final result = _timeParser.parse(line);
-      if (result is Success) {
-        final timePart = result.value;
-        final ts = timePart.timeSignature;
-
-        if (ts.numerator <= 0 || ts.denominator <= 0) {
-          return _LineParseResult(
-            error: ParseError(
-              lineNum,
-              'Time signature numerator and denominator must be positive',
-            ),
-          );
-        }
-
-        if ((ts.denominator & (ts.denominator - 1)) != 0) {
-          return _LineParseResult(
-            error: ParseError(lineNum, 'Denominator must be a power of 2'),
-          );
-        }
-
-        if (timePart.bars != null && timePart.bars! <= 0) {
-          return _LineParseResult(
-            error: ParseError(lineNum, 'Bar count must be positive'),
-          );
-        }
-
-        return _LineParseResult(
-          directive: TimeDirective(
-            timeSignature: ts,
-            tempo: currentTempo,
-            bars: timePart.bars,
-            lineNumber: lineNum,
-          ),
-        );
-      } else {
-        return _LineParseResult(
-          error: ParseError(lineNum, 'Invalid time signature syntax'),
-        );
-      }
-    }
-
-    // Try delay
-    if (line.startsWith('delay')) {
-      final result = _delayParser.parse(line);
-      if (result is Success) {
-        final delay = result.value;
-        if (delay < 0) {
-          return _LineParseResult(
-            error: ParseError(lineNum, 'Delay cannot be negative'),
-          );
-        }
-        return _LineParseResult(
-          directive: DelayDirective(seconds: delay, lineNumber: lineNum),
-        );
-      } else {
-        return _LineParseResult(
-          error: ParseError(lineNum, 'Invalid delay syntax'),
-        );
-      }
-    }
-
-    // Unknown line
-    return _LineParseResult(
-      error: ParseError(lineNum, 'Unknown directive: $line'),
     );
   }
 
@@ -287,19 +224,26 @@ class TrackParser {
   }
 }
 
+/// Helper class for internal tempo change
+class _TempoChange {
+  final int tempo;
+  final int line;
+  _TempoChange(this.tempo, this.line);
+}
+
 /// Helper class for time parsing result
 class _TimePart {
   final TimeSignature timeSignature;
   final int? bars;
+  final int line;
 
-  _TimePart({required this.timeSignature, this.bars});
+  _TimePart({required this.timeSignature, this.bars, required this.line});
 }
 
-/// Result of parsing a single line
-class _LineParseResult {
-  final int? newTempo;
-  final TrackDirective? directive;
-  final ParseError? error;
+/// Helper class for delay parsing result
+class _DelayPart {
+  final double seconds;
+  final int line;
 
-  _LineParseResult({this.newTempo, this.directive, this.error});
+  _DelayPart({required this.seconds, required this.line});
 }
