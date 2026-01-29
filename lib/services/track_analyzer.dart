@@ -1,8 +1,8 @@
 import 'package:flutter_code_editor/flutter_code_editor.dart';
-import 'liveset_parser.dart';
+import 'track_parser.dart';
 
-class LivesetAnalyzer extends AbstractAnalyzer {
-  final LivesetParser _parser = LivesetParser();
+class TrackAnalyzer extends AbstractAnalyzer {
+  final TrackParser _parser = TrackParser();
 
   @override
   Future<AnalysisResult> analyze(Code code) async {

@@ -116,7 +116,9 @@ class _BeatDisplayState extends State<BeatDisplay>
             builder: (context, child) {
               if (widget.isDelaying) {
                 final progress =
-                    widget.totalDelay != null && widget.totalDelay! > 0
+                    widget.totalDelay != null &&
+                        widget.totalDelay! > 0 &&
+                        widget.remainingDelay != null
                     ? 1.0 - (widget.remainingDelay! / widget.totalDelay!)
                     : 0.0;
 
@@ -140,7 +142,7 @@ class _BeatDisplayState extends State<BeatDisplay>
                     ),
                     // Big countdown number
                     Text(
-                      widget.remainingDelay!.toStringAsFixed(1),
+                      widget.remainingDelay?.toStringAsFixed(1) ?? '—',
                       style: const TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,

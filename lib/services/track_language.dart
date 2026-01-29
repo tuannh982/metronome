@@ -1,8 +1,8 @@
 import 'package:highlight/highlight.dart';
 
-final livesetLanguage = Mode(
+final trackLanguage = Mode(
   refs: {},
-  aliases: ['liveset'],
+  aliases: ['track'],
   keywords: {'keyword': 'tempo time bars bar delay'},
   contains: [
     Mode(className: 'comment', begin: '//', end: r'$'),

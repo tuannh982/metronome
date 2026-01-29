@@ -1,17 +1,17 @@
 import 'time_signature.dart';
 
-/// Base class for all directives in a liveset
-sealed class LivesetDirective {
+/// Base class for all directives in a track
+sealed class TrackDirective {
   /// Line number in source
   final int lineNumber;
 
-  const LivesetDirective({required this.lineNumber});
+  const TrackDirective({required this.lineNumber});
 
   Map<String, dynamic> toJson();
 }
 
-/// A time directive in a liveset (time signature with optional bars and tempo)
-class TimeDirective extends LivesetDirective {
+/// A time directive in a track (time signature with optional bars and tempo)
+class TimeDirective extends TrackDirective {
   /// Time signature
   final TimeSignature timeSignature;
 
@@ -42,8 +42,8 @@ class TimeDirective extends LivesetDirective {
       'TimeDirective(${timeSignature.display}, $tempo bpm${bars != null ? ', $bars bars' : ''})';
 }
 
-/// A delay directive in a liveset (pauses playback for a duration)
-class DelayDirective extends LivesetDirective {
+/// A delay directive in a track (pauses playback for a duration)
+class DelayDirective extends TrackDirective {
   /// Duration in seconds
   final double seconds;
 
@@ -60,14 +60,14 @@ class DelayDirective extends LivesetDirective {
   String toString() => 'DelayDirective($seconds s)';
 }
 
-/// A complete liveset containing directives
-class Liveset {
+/// A complete track containing directives
+class Track {
   final String name;
-  final List<LivesetDirective> directives;
+  final List<TrackDirective> directives;
 
-  const Liveset({this.name = 'Untitled', this.directives = const []});
+  const Track({this.name = 'Untitled', this.directives = const []});
 
-  /// Check if liveset is empty
+  /// Check if track is empty
   bool get isEmpty => directives.isEmpty;
 
   /// Get total bars (only counting time directives with explicit bars)
@@ -83,11 +83,11 @@ class Liveset {
   };
 
   @override
-  String toString() => 'Liveset($name: ${directives.length} directives)';
+  String toString() => 'Track($name: ${directives.length} directives)';
 }
 
-/// Represents the current playback position in a liveset
-class LivesetPlaybackState {
+/// Represents the current playback position in a track
+class TrackPlaybackState {
   final int directiveIndex;
   final int barInDirective;
   final int totalBar;
@@ -97,7 +97,7 @@ class LivesetPlaybackState {
   final TimeSignature currentTimeSignature;
   final bool isDelaying;
 
-  const LivesetPlaybackState({
+  const TrackPlaybackState({
     this.directiveIndex = 0,
     this.barInDirective = 1,
     this.totalBar = 1,
@@ -108,7 +108,7 @@ class LivesetPlaybackState {
     this.isDelaying = false,
   });
 
-  LivesetPlaybackState copyWith({
+  TrackPlaybackState copyWith({
     int? directiveIndex,
     int? barInDirective,
     int? totalBar,
@@ -118,7 +118,7 @@ class LivesetPlaybackState {
     TimeSignature? currentTimeSignature,
     bool? isDelaying,
   }) {
-    return LivesetPlaybackState(
+    return TrackPlaybackState(
       directiveIndex: directiveIndex ?? this.directiveIndex,
       barInDirective: barInDirective ?? this.barInDirective,
       totalBar: totalBar ?? this.totalBar,

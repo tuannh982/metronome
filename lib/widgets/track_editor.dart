@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'share_modal.dart';
-import '../services/liveset_analyzer.dart';
-import '../services/liveset_language.dart';
-import '../services/liveset_parser.dart';
+import '../services/track_analyzer.dart';
+import '../services/track_language.dart';
+import '../services/track_parser.dart';
 import '../theme/app_theme.dart';
 
-/// Liveset DSL text editor with syntax highlighting and error display
-class LivesetEditor extends StatefulWidget {
+/// Track DSL text editor with syntax highlighting and error display
+class TrackEditor extends StatefulWidget {
   final String text;
   final List<ParseError> errors;
   final ValueChanged<String> onChanged;
   final VoidCallback? onExport;
 
-  const LivesetEditor({
+  const TrackEditor({
     super.key,
     required this.text,
     required this.errors,
@@ -22,10 +22,10 @@ class LivesetEditor extends StatefulWidget {
   });
 
   @override
-  State<LivesetEditor> createState() => _LivesetEditorState();
+  State<TrackEditor> createState() => _TrackEditorState();
 }
 
-class _LivesetEditorState extends State<LivesetEditor> {
+class _TrackEditorState extends State<TrackEditor> {
   late CodeController _controller;
   late FocusNode _focusNode;
 
@@ -34,15 +34,15 @@ class _LivesetEditorState extends State<LivesetEditor> {
     super.initState();
     _controller = CodeController(
       text: widget.text,
-      language: livesetLanguage,
-      analyzer: LivesetAnalyzer(),
+      language: trackLanguage,
+      analyzer: TrackAnalyzer(),
     );
     _controller.autocompleter.setCustomWords(['tempo', 'time', 'bars', 'bar']);
-    _focusNode = FocusNode();
+    _focusNode = FocusNode(debugLabel: 'TrackEditor');
   }
 
   @override
-  void didUpdateWidget(LivesetEditor oldWidget) {
+  void didUpdateWidget(TrackEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.text != _controller.text && widget.text != oldWidget.text) {
       final selection = _controller.selection;
@@ -60,6 +60,64 @@ class _LivesetEditorState extends State<LivesetEditor> {
     super.dispose();
   }
 
+  void _showHelp(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('LanguageSyntax'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildHelpItem(
+                'tempo <bpm>',
+                'Sets the tempo (20-500 BPM). Example: tempo 120',
+              ),
+              _buildHelpItem(
+                'time <num>/<den>[, <n> bars]',
+                'Sets time signature and optional bar count. Example: time 4/4, 8 bars',
+              ),
+              _buildHelpItem(
+                'delay <seconds>',
+                'Adds a silent pause. Example: delay 1.5',
+              ),
+              _buildHelpItem('// comment', 'Single-line comment.'),
+              _buildHelpItem('/* comment */', 'Multi-line comment.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHelpItem(String syntax, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            syntax,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: 'monospace',
+              color: AppTheme.accentColor,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(description, style: const TextStyle(fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -69,9 +127,21 @@ class _LivesetEditorState extends State<LivesetEditor> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Liveset Editor',
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                Text(
+                  'Track Editor',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.help_outline, size: 20),
+                  tooltip: 'Syntax Help',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => _showHelp(context),
+                ),
+              ],
             ),
             if (widget.onExport != null)
               ElevatedButton.icon(
@@ -105,6 +175,7 @@ class _LivesetEditorState extends State<LivesetEditor> {
                     : AppTheme.errorColor.withValues(alpha: 0.5),
               ),
             ),
+            clipBehavior: Clip.hardEdge,
             child: Scrollbar(
               child: SingleChildScrollView(
                 child: CodeTheme(
@@ -151,7 +222,7 @@ class _LivesetEditorState extends State<LivesetEditor> {
                     textStyle: const TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 14,
-                      height: 1.6,
+                      height: 1.4,
                     ),
                     decoration: const BoxDecoration(color: Colors.transparent),
                   ),

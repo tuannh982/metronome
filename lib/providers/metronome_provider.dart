@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/metronome_state.dart';
 import '../models/time_signature.dart';
-import '../models/liveset.dart';
+import '../models/track.dart';
 import '../services/audio_service.dart';
 import '../services/metronome_service.dart';
-import '../services/liveset_parser.dart';
+import '../services/track_parser.dart';
 
 /// App mode enum
 enum AppMode { simple, complex }
@@ -14,13 +14,13 @@ enum AppMode { simple, complex }
 class MetronomeProvider extends ChangeNotifier {
   final AudioService _audioService = AudioService();
   late final MetronomeService _metronomeService;
-  final LivesetParser _parser = LivesetParser();
+  final TrackParser _parser = TrackParser();
 
   AppMode _mode = AppMode.simple;
   MetronomeState _state = const MetronomeState();
-  Liveset? _liveset;
-  List<LivesetDirective> _flattenedBars = [];
-  LivesetPlaybackState _playbackState = const LivesetPlaybackState();
+  Track? _track;
+  List<TrackDirective> _flattenedBars = [];
+  TrackPlaybackState _playbackState = const TrackPlaybackState();
   String _dslText = '';
   List<ParseError> _parseErrors = [];
   bool _initialized = false;
@@ -37,15 +37,16 @@ class MetronomeProvider extends ChangeNotifier {
   // Getters
   AppMode get mode => _mode;
   MetronomeState get state => _state;
-  Liveset? get liveset => _liveset;
-  LivesetPlaybackState get playbackState => _playbackState;
+  Track? get track => _track;
+  TrackPlaybackState get playbackState => _playbackState;
   String get dslText => _dslText;
   List<ParseError> get parseErrors => _parseErrors;
+  List<TrackDirective> get flattenedBars => _flattenedBars;
   bool get isPlaying => _state.isPlaying || _playbackState.isDelaying;
   bool get initialized => _initialized;
   bool get canPlay {
     if (_mode == AppMode.simple) return true;
-    final hasDirectives = _liveset?.directives.isNotEmpty ?? false;
+    final hasDirectives = _track?.directives.isNotEmpty ?? false;
     final hasNoErrors = _parseErrors.isEmpty;
     final hasContent = _dslText.trim().isNotEmpty;
     return hasNoErrors && hasDirectives && hasContent;
@@ -54,10 +55,10 @@ class MetronomeProvider extends ChangeNotifier {
   double? get remainingDelay => _remainingDelay;
   double? get totalDelay => _totalDelay;
 
-  /// Get the next directive in the liveset, if any
-  LivesetDirective? get nextDirective {
+  /// Get the next directive in the track, if any
+  TrackDirective? get nextDirective {
     if (_mode != AppMode.complex ||
-        _liveset == null ||
+        _track == null ||
         !isPlaying ||
         _flattenedBars.isEmpty) {
       return null;
@@ -104,9 +105,9 @@ class MetronomeProvider extends ChangeNotifier {
   void play() {
     if (!canPlay) return;
     if (_mode == AppMode.complex &&
-        _liveset != null &&
-        _liveset!.directives.isNotEmpty) {
-      _playLiveset();
+        _track != null &&
+        _track!.directives.isNotEmpty) {
+      _playTrack();
     } else {
       _metronomeService.play();
     }
@@ -115,7 +116,7 @@ class MetronomeProvider extends ChangeNotifier {
   /// Stop metronome
   void stop() {
     _metronomeService.stop();
-    _playbackState = const LivesetPlaybackState();
+    _playbackState = const TrackPlaybackState();
     notifyListeners();
   }
 
@@ -136,27 +137,84 @@ class MetronomeProvider extends ChangeNotifier {
     }
   }
 
+  void seekTo(int index) {
+    if (_flattenedBars.isEmpty || index < 0 || index >= _flattenedBars.length) {
+      return;
+    }
+
+    final wasPlaying = isPlaying;
+    final directive = _flattenedBars[index];
+    int barInDirective = 1;
+    for (int i = index - 1; i >= 0; i--) {
+      if (_flattenedBars[i] == directive) {
+        barInDirective++;
+      } else {
+        break;
+      }
+    }
+
+    int totalBar = 0;
+    for (int i = 0; i <= index; i++) {
+      if (_flattenedBars[i] is TimeDirective) {
+        totalBar++;
+      }
+    }
+
+    _playbackState = TrackPlaybackState(
+      directiveIndex: _track!.directives.indexOf(directive),
+      barInDirective: barInDirective,
+      totalBar: totalBar,
+      flattenedIndex: index,
+      beatInBar: 1,
+      currentTempo: directive is TimeDirective
+          ? directive.tempo
+          : _playbackState.currentTempo,
+      currentTimeSignature: directive is TimeDirective
+          ? directive.timeSignature
+          : _playbackState.currentTimeSignature,
+      isDelaying: directive is DelayDirective && wasPlaying,
+    );
+
+    if (wasPlaying) {
+      if (directive is TimeDirective) {
+        _delayUpdateTimer?.cancel();
+        _metronomeService.updateConfig(
+          bpm: directive.tempo,
+          timeSignature: directive.timeSignature,
+          immediate: true,
+        );
+        if (!_state.isPlaying) {
+          _metronomeService.play(reset: false);
+        }
+      } else if (directive is DelayDirective) {
+        _metronomeService.pause();
+        _startDelay(directive.seconds);
+      }
+    }
+
+    notifyListeners();
+  }
+
   /// Update DSL text and parse
   void updateDslText(String text) {
     _dslText = text;
     final result = _parser.parse(text);
-    print(result.toString());
+    debugPrint(result.toString());
     _parseErrors = result.errors;
-    _liveset = result.liveset;
+    _track = result.track;
     _buildFlattenedBars();
     notifyListeners();
   }
 
   void _buildFlattenedBars() {
     _flattenedBars = [];
-    if (_liveset == null) return;
-    for (final d in _liveset!.directives) {
+    if (_track == null) return;
+    for (final d in _track!.directives) {
       if (d is TimeDirective) {
         final barsCount = d.bars ?? 1;
         for (int i = 0; i < barsCount; i++) {
           _flattenedBars.add(d);
         }
-        if (d.bars == null) break;
       } else if (d is DelayDirective) {
         _flattenedBars.add(d);
       }
@@ -168,36 +226,31 @@ class MetronomeProvider extends ChangeNotifier {
     return _dslText;
   }
 
-  void _playLiveset() {
-    if (_liveset == null || _liveset!.isEmpty || _flattenedBars.isEmpty) return;
+  void _playTrack() {
+    if (_track == null || _track!.isEmpty || _flattenedBars.isEmpty) return;
 
-    final firstBar = _flattenedBars[0];
+    final startIndex = _playbackState.flattenedIndex;
+    final currentBar = _flattenedBars[startIndex];
 
-    if (firstBar is TimeDirective) {
-      _playbackState = LivesetPlaybackState(
-        directiveIndex: _liveset!.directives.indexOf(firstBar),
-        barInDirective: 1,
-        totalBar: 1,
-        flattenedIndex: 0,
-        beatInBar: 1,
-        currentTempo: firstBar.tempo,
-        currentTimeSignature: firstBar.timeSignature,
+    if (currentBar is TimeDirective) {
+      _playbackState = _playbackState.copyWith(
+        directiveIndex: _track!.directives.indexOf(currentBar),
+        isDelaying: false,
+        currentTempo: currentBar.tempo,
+        currentTimeSignature: currentBar.timeSignature,
+        beatInBar: 1, // Reset beat to start of bar
       );
 
-      _metronomeService.setTempo(firstBar.tempo);
-      _metronomeService.setTimeSignature(firstBar.timeSignature);
+      _metronomeService.setTempo(currentBar.tempo);
+      _metronomeService.setTimeSignature(currentBar.timeSignature);
       _metronomeService.play();
-    } else if (firstBar is DelayDirective) {
-      _playbackState = LivesetPlaybackState(
-        directiveIndex: _liveset!.directives.indexOf(firstBar),
-        barInDirective: 1,
-        totalBar: 0, // Not counting as a bar
-        flattenedIndex: 0,
-        beatInBar: 1,
+    } else if (currentBar is DelayDirective) {
+      _playbackState = _playbackState.copyWith(
+        directiveIndex: _track!.directives.indexOf(currentBar),
         isDelaying: true,
       );
       _metronomeService.stop();
-      _startDelay(firstBar.seconds);
+      _startDelay(currentBar.seconds);
     }
     notifyListeners();
   }
@@ -222,7 +275,7 @@ class MetronomeProvider extends ChangeNotifier {
       _remainingDelay = null;
       _totalDelay = null;
       if (!_state.isPlaying && _playbackState.isDelaying) {
-        _advanceLivesetPlayback(fromDelay: true);
+        _advanceTrackPlayback(fromDelay: true);
       }
     });
   }
@@ -233,14 +286,14 @@ class MetronomeProvider extends ChangeNotifier {
   }
 
   void _onBeat(MetronomeState state) {
-    if (_mode == AppMode.complex && _liveset != null && _state.isPlaying) {
-      _advanceLivesetPlayback();
+    if (_mode == AppMode.complex && _track != null && _state.isPlaying) {
+      _advanceTrackPlayback();
     }
     notifyListeners();
   }
 
-  void _advanceLivesetPlayback({bool fromDelay = false}) {
-    if (_liveset == null || _flattenedBars.isEmpty) return;
+  void _advanceTrackPlayback({bool fromDelay = false}) {
+    if (_track == null || _flattenedBars.isEmpty) return;
 
     final previousBeat = _playbackState.beatInBar;
     final currentBeat = fromDelay ? 1 : _state.currentBeat;
@@ -256,7 +309,7 @@ class MetronomeProvider extends ChangeNotifier {
       final nextFlattenedIndex = _playbackState.flattenedIndex + 1;
       int currentIndex = nextFlattenedIndex;
 
-      // Handle end of liveset
+      // Handle end of track
       if (currentIndex >= _flattenedBars.length) {
         final lastDirective = _flattenedBars.last;
         if (lastDirective is TimeDirective && lastDirective.bars == null) {
@@ -293,8 +346,8 @@ class MetronomeProvider extends ChangeNotifier {
                 _playbackState.currentTimeSignature ||
             _playbackState.isDelaying;
 
-        _playbackState = LivesetPlaybackState(
-          directiveIndex: _liveset!.directives.indexOf(currentDirective),
+        _playbackState = TrackPlaybackState(
+          directiveIndex: _track!.directives.indexOf(currentDirective),
           barInDirective: barInDirective,
           totalBar: nextTotalBar,
           flattenedIndex: currentIndex,
@@ -315,8 +368,8 @@ class MetronomeProvider extends ChangeNotifier {
           _metronomeService.play(reset: false);
         }
       } else if (currentDirective is DelayDirective) {
-        _playbackState = LivesetPlaybackState(
-          directiveIndex: _liveset!.directives.indexOf(currentDirective),
+        _playbackState = TrackPlaybackState(
+          directiveIndex: _track!.directives.indexOf(currentDirective),
           barInDirective: 1,
           totalBar: nextTotalBar, // Keeps previous totalBar
           flattenedIndex: currentIndex,

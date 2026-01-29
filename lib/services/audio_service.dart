@@ -10,7 +10,7 @@ class AudioService {
   double _volume = 1.0;
 
   // Audio source file
-  static const _clickSound = 'sounds/metronome-85688.mp3';
+  static const _clickSound = 'sounds/metronome-85688-small.mp3';
 
   /// Initialize audio players with click sounds
   Future<void> init() async {
@@ -23,7 +23,8 @@ class AudioService {
       // Set player mode for low latency
       await _clickPlayer!.setPlayerMode(PlayerMode.lowLatency);
       await _accentPlayer!.setPlayerMode(PlayerMode.lowLatency);
-
+      await _clickPlayer!.setVolume(_volume);
+      await _accentPlayer!.setVolume(_volume);
       _initialized = true;
     } catch (e) {
       debugPrint('AudioService init error: $e');
@@ -45,7 +46,7 @@ class AudioService {
   Future<void> playAccent() async {
     if (_accentPlayer == null || !_initialized) return;
     try {
-      await _accentPlayer!.setVolume(_volume.clamp(0.0, 1.0));
+      await _accentPlayer!.setVolume(_volume);
       await _accentPlayer!.play(AssetSource(_clickSound));
     } catch (e) {
       debugPrint('playAccent error: $e');

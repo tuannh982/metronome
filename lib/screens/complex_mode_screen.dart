@@ -5,10 +5,11 @@ import 'package:file_saver/file_saver.dart';
 import 'package:uuid/uuid.dart';
 
 import '../providers/metronome_provider.dart';
-import '../widgets/liveset_editor.dart';
+import '../widgets/track_editor.dart';
+import '../widgets/track_seeker.dart';
 import '../theme/app_theme.dart';
 
-/// Complex mode screen with liveset editor
+/// Complex mode screen with track editor
 class ComplexModeScreen extends StatelessWidget {
   const ComplexModeScreen({super.key});
 
@@ -20,14 +21,23 @@ class ComplexModeScreen extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              // Liveset editor
+              // Track editor
               Expanded(
-                child: LivesetEditor(
+                child: TrackEditor(
                   text: provider.dslText,
                   errors: provider.parseErrors,
                   onChanged: provider.updateDslText,
-                  onExport: () => _exportLiveset(context, provider),
+                  onExport: () => _exportTrack(context, provider),
                 ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Track seeker
+              TrackSeeker(
+                flattenedBars: provider.flattenedBars,
+                activeIndex: provider.playbackState.flattenedIndex,
+                onSeek: provider.seekTo,
               ),
 
               const SizedBox(height: 16),
@@ -41,7 +51,7 @@ class ComplexModeScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _exportLiveset(
+  Future<void> _exportTrack(
     BuildContext context,
     MetronomeProvider provider,
   ) async {
@@ -53,14 +63,14 @@ class ComplexModeScreen extends StatelessWidget {
       await FileSaver.instance.saveFile(
         name: fileName,
         bytes: bytes,
-        ext: 'liveset',
+        ext: 'track',
         mimeType: MimeType.text,
       );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Liveset exported successfully!'),
+            content: Text('Track exported successfully!'),
             backgroundColor: AppTheme.successColor,
           ),
         );

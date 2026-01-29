@@ -1,5 +1,5 @@
 name: metronome
-description: "A Flutter metronome app with simple and complex (liveset) modes."
+description: "A Flutter metronome app with simple and complex (track) modes."
 publish_to: 'none'
 version: 0.1.0
 
