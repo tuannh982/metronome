@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/metronome_provider.dart';
+import '../widgets/tap_tempo_button.dart';
 import '../widgets/tempo_input.dart';
 import '../widgets/time_signature_picker.dart';
 
@@ -30,6 +31,14 @@ class SimpleModeScreen extends StatelessWidget {
               TimeSignaturePicker(
                 selected: provider.state.timeSignature,
                 onChanged: provider.setTimeSignature,
+              ),
+
+              const SizedBox(height: 32),
+
+              // Tap tempo button (disabled while playing)
+              TapTempoButton(
+                enabled: !provider.isPlaying,
+                onTap: provider.tapTempo,
               ),
             ],
           ),

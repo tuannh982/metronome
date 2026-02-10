@@ -28,17 +28,40 @@ class TrackEditor extends StatefulWidget {
 class _TrackEditorState extends State<TrackEditor> {
   late CodeController _controller;
   late FocusNode _focusNode;
+  late String _lastText;
 
   @override
   void initState() {
     super.initState();
+    _lastText = widget.text;
     _controller = CodeController(
       text: widget.text,
       language: trackLanguage,
       analyzer: TrackAnalyzer(),
     );
-    _controller.autocompleter.setCustomWords(['tempo', 'time', 'bars', 'bar']);
+    // Override dismiss action: unfocus editor when nothing to dismiss
+    _controller.actions[DismissIntent] = CallbackAction<DismissIntent>(
+      onInvoke: (intent) {
+        if (_controller.popupController.shouldShow) {
+          _controller.dismiss();
+        } else {
+          _focusNode.unfocus(
+            disposition: UnfocusDisposition.previouslyFocusedChild,
+          );
+        }
+        return null;
+      },
+    );
+    // Listen for text changes to catch autocomplete insertions
+    _controller.addListener(_onControllerChanged);
     _focusNode = FocusNode(debugLabel: 'TrackEditor');
+  }
+
+  void _onControllerChanged() {
+    if (_controller.text != _lastText) {
+      _lastText = _controller.text;
+      widget.onChanged(_controller.text);
+    }
   }
 
   @override
@@ -46,6 +69,7 @@ class _TrackEditorState extends State<TrackEditor> {
     super.didUpdateWidget(oldWidget);
     if (widget.text != _controller.text && widget.text != oldWidget.text) {
       final selection = _controller.selection;
+      _lastText = widget.text;
       _controller.text = widget.text;
       if (selection.baseOffset <= widget.text.length) {
         _controller.selection = selection;
@@ -55,6 +79,7 @@ class _TrackEditorState extends State<TrackEditor> {
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -205,7 +230,6 @@ class _TrackEditorState extends State<TrackEditor> {
                     controller: _controller,
                     focusNode: _focusNode,
                     maxLines: null,
-                    onChanged: widget.onChanged,
                     cursorColor: AppTheme.primaryColor,
                     gutterStyle: GutterStyle(
                       showErrors: true,

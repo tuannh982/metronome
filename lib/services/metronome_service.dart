@@ -119,8 +119,9 @@ class MetronomeService {
   }
 
   void _scheduleNextBeat(int sessionId) {
-    if (sessionId != _timerId)
+    if (sessionId != _timerId) {
       return; // Terminate if this isn't the active session
+    }
 
     _expectedTick++;
     final nextBeatTime = _expectedTick * _state.beatDurationMicros;

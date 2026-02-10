@@ -33,8 +33,7 @@ class ParseResult {
       ).convert(track?.toJson());
       return 'ParseResult: Success (${track?.directives.length ?? 0} directives)\n$jsonStr';
     } else {
-      return 'ParseResult: Failure (${errors.length} errors)\n' +
-          errors.map((e) => '  - $e').join('\n');
+      return 'ParseResult: Failure (${errors.length} errors)\n${errors.map((e) => '  - $e').join('\n')}';
     }
   }
 }
