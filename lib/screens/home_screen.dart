@@ -103,6 +103,29 @@ class _HomeScreenState extends State<HomeScreen> {
               }
               return KeyEventResult.handled;
             }
+            // 'T' key for tap tempo in simple mode (only when not playing)
+            if (event.logicalKey == LogicalKeyboardKey.keyT &&
+                event is KeyDownEvent) {
+              // Skip if a text input is focused
+              final tapFocused = FocusManager.instance.primaryFocus;
+              if (tapFocused != null) {
+                if (tapFocused.debugLabel == 'TrackEditor') {
+                  return KeyEventResult.ignored;
+                }
+                if (tapFocused.context?.widget is EditableText ||
+                    tapFocused.descendants.any(
+                      (n) => n.context?.widget is EditableText,
+                    )) {
+                  return KeyEventResult.ignored;
+                }
+              }
+
+              if (provider.mode == AppMode.simple && !provider.isPlaying) {
+                provider.tapTempo();
+                return KeyEventResult.handled;
+              }
+            }
+
             return KeyEventResult.ignored;
           },
           child: GestureDetector(

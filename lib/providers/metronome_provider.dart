@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../constants.dart';
 import '../models/metronome_state.dart';
 import '../models/time_signature.dart';
 import '../models/track.dart';
@@ -27,6 +28,9 @@ class MetronomeProvider extends ChangeNotifier {
   double? _remainingDelay;
   double? _totalDelay;
   Timer? _delayUpdateTimer;
+  final List<int> _tapTimestamps = [];
+  static const int _maxTaps = 8;
+  static const int _tapResetMs = 2000;
 
   MetronomeProvider() {
     _metronomeService = MetronomeService(_audioService);
@@ -89,6 +93,38 @@ class MetronomeProvider extends ChangeNotifier {
     }
     _mode = mode;
     notifyListeners();
+  }
+
+  /// Tap tempo — record a tap and calculate BPM from recent tap intervals
+  void tapTempo() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Reset if too long since last tap
+    if (_tapTimestamps.isNotEmpty &&
+        (now - _tapTimestamps.last) > _tapResetMs) {
+      _tapTimestamps.clear();
+    }
+
+    _tapTimestamps.add(now);
+
+    // Keep only the last N taps
+    if (_tapTimestamps.length > _maxTaps) {
+      _tapTimestamps.removeAt(0);
+    }
+
+    // Need at least 2 taps to calculate BPM
+    if (_tapTimestamps.length >= 2) {
+      final intervals = <int>[];
+      for (int i = 1; i < _tapTimestamps.length; i++) {
+        intervals.add(_tapTimestamps[i] - _tapTimestamps[i - 1]);
+      }
+      final avgInterval = intervals.reduce((a, b) => a + b) / intervals.length;
+      final bpm = (60000 / avgInterval).round().clamp(
+        AppConstants.minBpm,
+        AppConstants.maxBpm,
+      );
+      _metronomeService.setTempo(bpm);
+    }
   }
 
   /// Set tempo (simple mode)
