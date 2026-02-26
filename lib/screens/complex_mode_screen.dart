@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../providers/metronome_provider.dart';
 import '../widgets/track_editor.dart';
 import '../widgets/track_seeker.dart';
+import '../widgets/youtube_video_panel.dart';
 import '../theme/app_theme.dart';
 
 /// Complex mode screen with track editor
@@ -19,32 +20,61 @@ class ComplexModeScreen extends StatelessWidget {
       builder: (context, provider, child) {
         return Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              // Track editor
-              Expanded(
-                child: TrackEditor(
-                  text: provider.dslText,
-                  errors: provider.parseErrors,
-                  onChanged: provider.updateDslText,
-                  onExport: () => _exportTrack(context, provider),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                // Video panel toggle
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        provider.isVideoPanelVisible
+                            ? Icons.videocam
+                            : Icons.videocam_off_outlined,
+                        size: 20,
+                      ),
+                      tooltip: provider.isVideoPanelVisible
+                          ? 'Hide video panel'
+                          : 'Show video panel',
+                      onPressed: provider.toggleVideoPanel,
+                      color: provider.isVideoPanelVisible
+                          ? AppTheme.primaryColor
+                          : AppTheme.textSecondary,
+                    ),
+                  ],
                 ),
-              ),
 
-              const SizedBox(height: 16),
+                // Collapsible video panel
+                const YoutubeVideoPanel(),
 
-              // Track seeker
-              TrackSeeker(
-                flattenedBars: provider.flattenedBars,
-                activeIndex: provider.playbackState.flattenedIndex,
-                onSeek: provider.seekTo,
-              ),
+                const SizedBox(height: 8),
 
-              const SizedBox(height: 16),
+                // Track editor
+                SizedBox(
+                  height: 300,
+                  child: TrackEditor(
+                    text: provider.dslText,
+                    errors: provider.parseErrors,
+                    onChanged: provider.updateDslText,
+                    onExport: () => _exportTrack(context, provider),
+                  ),
+                ),
 
-              // Bar counter at the bottom
-              _BarCounter(provider: provider),
-            ],
+                const SizedBox(height: 8),
+
+                // Track seeker
+                TrackSeeker(
+                  flattenedBars: provider.flattenedBars,
+                  activeIndex: provider.playbackState.flattenedIndex,
+                  onSeek: provider.seekTo,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Bar counter at the bottom
+                _BarCounter(provider: provider),
+              ],
+            ),
           ),
         );
       },

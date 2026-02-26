@@ -1,30 +1,24 @@
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_soloud/flutter_soloud.dart';
 
 /// Service for playing metronome click sounds
 class AudioService {
-  AudioPlayer? _clickPlayer;
-  AudioPlayer? _accentPlayer;
+  final SoLoud _soloud = SoLoud.instance;
+  AudioSource? _clickSource;
 
   bool _initialized = false;
   double _volume = 1.0;
 
   // Audio source file
-  static const _clickSound = 'sounds/metronome-85688-small.mp3';
+  static const _clickSound = 'assets/sounds/metronome-85688-small.mp3';
 
   /// Initialize audio players with click sounds
   Future<void> init() async {
     if (_initialized) return;
 
     try {
-      _clickPlayer = AudioPlayer();
-      _accentPlayer = AudioPlayer();
-
-      // Set player mode for low latency
-      await _clickPlayer!.setPlayerMode(PlayerMode.lowLatency);
-      await _accentPlayer!.setPlayerMode(PlayerMode.lowLatency);
-      await _clickPlayer!.setVolume(_volume);
-      await _accentPlayer!.setVolume(_volume);
+      await _soloud.init();
+      _clickSource = await _soloud.loadAsset(_clickSound);
       _initialized = true;
     } catch (e) {
       debugPrint('AudioService init error: $e');
@@ -33,10 +27,9 @@ class AudioService {
 
   /// Play regular click sound
   Future<void> playClick() async {
-    if (_clickPlayer == null || !_initialized) return;
+    if (_clickSource == null || !_initialized) return;
     try {
-      await _clickPlayer!.setVolume(_volume);
-      await _clickPlayer!.play(AssetSource(_clickSound));
+      await _soloud.play(_clickSource!, volume: _volume);
     } catch (e) {
       debugPrint('playClick error: $e');
     }
@@ -44,10 +37,9 @@ class AudioService {
 
   /// Play accented click sound (for downbeat)
   Future<void> playAccent() async {
-    if (_accentPlayer == null || !_initialized) return;
+    if (_clickSource == null || !_initialized) return;
     try {
-      await _accentPlayer!.setVolume(_volume);
-      await _accentPlayer!.play(AssetSource(_clickSound));
+      await _soloud.play(_clickSource!, volume: _volume);
     } catch (e) {
       debugPrint('playAccent error: $e');
     }
@@ -63,7 +55,9 @@ class AudioService {
 
   /// Dispose resources
   Future<void> dispose() async {
-    await _clickPlayer?.dispose();
-    await _accentPlayer?.dispose();
+    if (_clickSource != null) {
+      await _soloud.disposeSource(_clickSource!);
+    }
+    _soloud.deinit();
   }
 }

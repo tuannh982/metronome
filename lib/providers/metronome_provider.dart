@@ -11,6 +11,26 @@ import '../services/track_parser.dart';
 /// App mode enum
 enum AppMode { simple, complex }
 
+/// Events sent to the video player for sync
+sealed class VideoSyncEvent {}
+
+class VideoSyncPlay extends VideoSyncEvent {
+  final double seekToSeconds;
+  VideoSyncPlay(this.seekToSeconds);
+}
+
+class VideoSyncPause extends VideoSyncEvent {}
+
+class VideoSyncStop extends VideoSyncEvent {
+  final double seekToSeconds;
+  VideoSyncStop(this.seekToSeconds);
+}
+
+class VideoSyncSeek extends VideoSyncEvent {
+  final double seekToSeconds;
+  VideoSyncSeek(this.seekToSeconds);
+}
+
 /// Provider for metronome state management
 class MetronomeProvider extends ChangeNotifier {
   final AudioService _audioService = AudioService();
@@ -31,6 +51,13 @@ class MetronomeProvider extends ChangeNotifier {
   final List<int> _tapTimestamps = [];
   static const int _maxTaps = 8;
   static const int _tapResetMs = 2000;
+
+  // YouTube sync
+  String? _youtubeVideoId;
+  double _songStartOffset = 0.0;   // seconds
+  double _finetuneOffset = 0.0;     // seconds (stored as seconds, UI shows ms)
+  bool _isVideoPanelVisible = false;
+  void Function(VideoSyncEvent event)? onVideoSync;
 
   MetronomeProvider() {
     _metronomeService = MetronomeService(_audioService);
@@ -58,6 +85,11 @@ class MetronomeProvider extends ChangeNotifier {
 
   double? get remainingDelay => _remainingDelay;
   double? get totalDelay => _totalDelay;
+
+  String? get youtubeVideoId => _youtubeVideoId;
+  double get songStartOffset => _songStartOffset;
+  double get finetuneOffset => _finetuneOffset;
+  bool get isVideoPanelVisible => _isVideoPanelVisible;
 
   /// Get the next directive in the track, if any
   TrackDirective? get nextDirective {
@@ -88,8 +120,16 @@ class MetronomeProvider extends ChangeNotifier {
   void setMode(AppMode mode) {
     if (_mode == mode) return;
     // Stop playing when switching modes
-    if (_state.isPlaying) {
-      _metronomeService.stop();
+    if (_state.isPlaying || _playbackState.isDelaying) {
+      stop();
+    }
+    // Clear YouTube state when leaving complex mode
+    if (_mode == AppMode.complex) {
+      _youtubeVideoId = null;
+      _songStartOffset = 0.0;
+      _finetuneOffset = 0.0;
+      _isVideoPanelVisible = false;
+      onVideoSync = null;
     }
     _mode = mode;
     notifyListeners();
@@ -127,6 +167,66 @@ class MetronomeProvider extends ChangeNotifier {
     }
   }
 
+  /// Set YouTube video URL — extracts video ID from common URL formats
+  void setYoutubeUrl(String? url) {
+    if (url == null || url.trim().isEmpty) {
+      _youtubeVideoId = null;
+      notifyListeners();
+      return;
+    }
+    _youtubeVideoId = _extractVideoId(url.trim());
+    notifyListeners();
+  }
+
+  static String? _extractVideoId(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    if (uri.host.contains('youtube.com') || uri.host.contains('youtube-nocookie.com')) {
+      return uri.queryParameters['v'];
+    }
+    if (uri.host == 'youtu.be') {
+      final path = uri.pathSegments;
+      return path.isNotEmpty ? path.first : null;
+    }
+    if (RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(url)) {
+      return url;
+    }
+    return null;
+  }
+
+  void setSongStartOffset(double seconds) {
+    _songStartOffset = seconds.clamp(0, double.infinity);
+    notifyListeners();
+  }
+
+  void setFinetuneOffset(double seconds) {
+    _finetuneOffset = seconds;
+    notifyListeners();
+  }
+
+  void toggleVideoPanel() {
+    _isVideoPanelVisible = !_isVideoPanelVisible;
+    notifyListeners();
+  }
+
+  double cumulativeTimeAt(int barIndex) {
+    double time = 0.0;
+    for (int i = 0; i < barIndex && i < _flattenedBars.length; i++) {
+      final directive = _flattenedBars[i];
+      if (directive is TimeDirective) {
+        final barDuration = (directive.timeSignature.numerator / directive.tempo) * 60.0;
+        time += barDuration;
+      } else if (directive is DelayDirective) {
+        time += directive.seconds;
+      }
+    }
+    return time;
+  }
+
+  double videoSeekPositionAt(int barIndex) {
+    return _songStartOffset + _finetuneOffset + cumulativeTimeAt(barIndex);
+  }
+
   /// Set tempo (simple mode)
   void setTempo(int bpm) {
     _metronomeService.setTempo(bpm);
@@ -144,6 +244,9 @@ class MetronomeProvider extends ChangeNotifier {
         _track != null &&
         _track!.directives.isNotEmpty) {
       _playTrack();
+      if (_youtubeVideoId != null) {
+        onVideoSync?.call(VideoSyncPlay(videoSeekPositionAt(_playbackState.flattenedIndex)));
+      }
     } else {
       _metronomeService.play();
     }
@@ -153,6 +256,9 @@ class MetronomeProvider extends ChangeNotifier {
   void stop() {
     _metronomeService.stop();
     _playbackState = const TrackPlaybackState();
+    if (_youtubeVideoId != null) {
+      onVideoSync?.call(VideoSyncStop(_songStartOffset + _finetuneOffset));
+    }
     notifyListeners();
   }
 
@@ -162,13 +268,28 @@ class MetronomeProvider extends ChangeNotifier {
       if (_playbackState.isDelaying) {
         _delayUpdateTimer?.cancel();
         _playbackState = _playbackState.copyWith(isDelaying: false);
+        if (_youtubeVideoId != null) {
+          onVideoSync?.call(VideoSyncPause());
+        }
         notifyListeners();
       } else {
         _metronomeService.pause();
+        if (_youtubeVideoId != null) {
+          onVideoSync?.call(VideoSyncPause());
+        }
       }
     } else {
       if (canPlay) {
-        play();
+        if (_mode == AppMode.complex && _playbackState.flattenedIndex > 0) {
+          final currentIndex = _playbackState.flattenedIndex;
+          seekTo(currentIndex);
+          _playTrack();
+          if (_youtubeVideoId != null) {
+            onVideoSync?.call(VideoSyncPlay(videoSeekPositionAt(currentIndex)));
+          }
+        } else {
+          play();
+        }
       }
     }
   }
@@ -226,6 +347,10 @@ class MetronomeProvider extends ChangeNotifier {
         _metronomeService.pause();
         _startDelay(directive.seconds);
       }
+    }
+
+    if (_youtubeVideoId != null && wasPlaying) {
+      onVideoSync?.call(VideoSyncSeek(videoSeekPositionAt(index)));
     }
 
     notifyListeners();
